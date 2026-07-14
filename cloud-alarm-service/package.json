@@ -1,0 +1,14 @@
+{
+  "name": "relite-cloud-alarm-service",
+  "version": "1.0.0",
+  "description": "Always-on MQTT alarm scheduler for Relite motors",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mqtt": "^5.10.4"
+  }
+}

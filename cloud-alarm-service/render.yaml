@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: relite-cloud-alarm-service
+    env: node
+    rootDir: cloud-alarm-service
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
