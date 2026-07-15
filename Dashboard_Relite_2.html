@@ -2919,6 +2919,20 @@
             });
         }
 
+        function captureScrollPosition() {
+            return {
+                x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
+                y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+            };
+        }
+
+        function restoreScrollPosition(position) {
+            if (!position) {
+                return;
+            }
+            window.scrollTo(position.x || 0, position.y || 0);
+        }
+
         function addLog(message) {
             const log = document.getElementById("log");
             const line = document.createElement("div");
@@ -2993,6 +3007,7 @@
         }
 
         function renderMotorCard(motor) {
+            const scrollPosition = captureScrollPosition();
             const card = document.getElementById("motor-card-" + motor.id);
             const badge = document.getElementById("motor-state-" + motor.id);
             const motorNameText = document.getElementById("motor-name-text-" + motor.id);
@@ -3282,6 +3297,8 @@
             }
 
             updateDeviceSummary();
+
+            restoreScrollPosition(scrollPosition);
         }
 
         function updateDeviceSummary() {
@@ -3374,10 +3391,12 @@
         }
 
         function renderAllMotors() {
+            const scrollPosition = captureScrollPosition();
             motors.forEach(function(motor) {
                 renderMotorCard(motor);
             });
             reorderMotorGridByNumber();
+            restoreScrollPosition(scrollPosition);
         }
 
         function isMotorEditorActive() {
@@ -4203,6 +4222,7 @@
 
         function initMotorGrid() {
             const grid = document.getElementById("motorGrid");
+            const scrollPosition = captureScrollPosition();
             let html = "";
 
             motors.forEach(function(motor) {
@@ -4299,6 +4319,7 @@
             });
             renderAllMotors();
             setConnectionStatus(false);
+            restoreScrollPosition(scrollPosition);
         }
 
         function updateStats(data) {
@@ -4808,6 +4829,7 @@
     </script>
 </body>
 </html>
+
 
 
 
