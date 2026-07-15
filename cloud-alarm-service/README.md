@@ -91,6 +91,26 @@ Body:
   "target": "0025",
   "active": true
 }
+
+### Read alarms
+
+- `GET /api/alarms`
+
+### Update alarms at runtime (no redeploy)
+
+- `POST /api/alarms`
+
+Body:
+
+```json
+{
+  "alarms": [
+    { "enabled": true, "target": "all", "on": "06:00", "off": "10:00" },
+    { "enabled": true, "target": "all", "on": "16:00", "off": "19:00" },
+    { "enabled": false, "target": "all", "on": "18:00", "off": "19:00" }
+  ]
+}
+```
 ```
 
 ## Deploy on Render (free/low-cost)

@@ -137,7 +137,52 @@ function parseHHMM(text) {
   return { hh, mm };
 }
 
+function formatHHMM(hh, mm) {
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function normalizeAlarmEntry(item, fallbackTarget) {
+  const source = item && typeof item === "object" ? item : {};
+  const target = normalizeTarget(source.target || fallbackTarget || "all");
+  const on = parseHHMM(String(source.on || ""));
+  const off = parseHHMM(String(source.off || ""));
+
+  if (!on || !off) {
+    return null;
+  }
+
+  return {
+    enabled: source.enabled === true,
+    target,
+    on: formatHHMM(on.hh, on.mm),
+    off: formatHHMM(off.hh, off.mm)
+  };
+}
+
+function normalizeAlarmArray(rawAlarms, fallbackTarget) {
+  if (!Array.isArray(rawAlarms)) {
+    return [];
+  }
+  return rawAlarms
+    .map((item) => normalizeAlarmEntry(item, fallbackTarget))
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function persistAlarmsToConfigFile(alarms) {
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    parsed.alarms = alarms;
+    fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 const config = readConfig();
+const alarmsOverrideActive = Boolean(readEnvText("ALARMS_JSON"));
 
 const state = {
   mqttConnected: false,
@@ -391,6 +436,16 @@ setInterval(checkAlarms, 15000);
 setInterval(processJobs, 5000);
 
 const app = express();
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -428,6 +483,45 @@ app.get("/api/state", (_req, res) => {
     manualLocks,
     jobs: Array.from(state.jobs.values())
   });
+});
+
+app.get("/api/alarms", (_req, res) => {
+  res.json({
+    ok: true,
+    alarms: Array.isArray(config.alarms) ? config.alarms : []
+  });
+});
+
+app.post("/api/alarms", (req, res) => {
+  if (alarmsOverrideActive) {
+    res.status(409).json({
+      ok: false,
+      error: "ALARMS_JSON env override is active. Remove it before editing alarms via API."
+    });
+    return;
+  }
+
+  const fallbackTarget = normalizeTarget(req.body && req.body.target ? String(req.body.target) : config.defaultTarget);
+  const alarms = normalizeAlarmArray(req.body && req.body.alarms, fallbackTarget);
+
+  if (alarms.length === 0) {
+    res.status(400).json({ ok: false, error: "alarms must include valid on/off HH:MM entries" });
+    return;
+  }
+
+  config.alarms = alarms;
+  state.alarmLastTrigger.clear();
+  const persistResult = persistAlarmsToConfigFile(alarms);
+
+  if (!persistResult.ok) {
+    res.status(500).json({
+      ok: false,
+      error: `alarms updated in memory but failed to persist config file: ${persistResult.error}`
+    });
+    return;
+  }
+
+  res.json({ ok: true, alarms: config.alarms });
 });
 
 app.post("/api/manual", (req, res) => {

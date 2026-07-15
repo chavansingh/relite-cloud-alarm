@@ -1,4 +1,4 @@
-q<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -771,6 +771,8 @@ q<!DOCTYPE html>
             <div class="schedule-actions">
                 <button class="motor-btn motor-btn-mode" onclick="sendScheduleConfigToEsp()">Save Schedule to Device</button>
                 <button class="motor-btn motor-btn-on" onclick="saveScheduleConfig(readScheduleEditor())">Save Schedule Locally</button>
+                <button class="motor-btn motor-btn-mode" onclick="saveScheduleToCloud()">Save Alarm to Cloud</button>
+                <button class="motor-btn motor-btn-mode" onclick="loadScheduleFromCloud(false)">Load Alarm from Cloud</button>
             </div>
             <div class="alarm-retry-box">
                 <div class="alarm-retry-row">
@@ -794,7 +796,7 @@ q<!DOCTYPE html>
                     </div>
                 </div>
             </div>
-            <div class="schedule-message" id="scheduleMessage">Schedule changes are saved locally and can be pushed to the device.</div>
+            <div class="schedule-message" id="scheduleMessage">Schedule can be saved locally, to cloud alarm service, or pushed to device.</div>
             <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Optional Dashboard Alarm Sender repeats ON/OFF commands while this page stays open and MQTT is connected.</div>
         </div>
 
@@ -862,6 +864,20 @@ q<!DOCTYPE html>
         const NAME_EDIT_PASSWORD = "1234";
         const DEVICE_OFFLINE_MS = 35000;
         const MANUAL_ON_DURATION_OPTIONS = [10, 20, 40, 60, 120, 180];
+        const CLOUD_ALARM_API_BASE_URL_KEY = "relite_cloud_alarm_api_base_url";
+        const DEFAULT_CLOUD_ALARM_API_BASE_URL = "https://relite-cloud-alarm.onrender.com";
+
+        function getCloudAlarmApiBaseUrl() {
+            try {
+                const saved = localStorage.getItem(CLOUD_ALARM_API_BASE_URL_KEY);
+                if (typeof saved === "string" && saved.trim()) {
+                    return saved.trim().replace(/\/+$/, "");
+                }
+            } catch (err) {
+                // fallback below
+            }
+            return DEFAULT_CLOUD_ALARM_API_BASE_URL;
+        }
 
         function loadMotorNames(id) {
             const defaults = {
@@ -1343,6 +1359,112 @@ q<!DOCTYPE html>
             }
             const id4 = select.value;
             return id4 ? topicPrefix + "/motor/" + id4 + "/control" : topicPrefix + "/motor/all/control";
+        }
+
+        function buildCloudAlarmPayloadFromSchedule(schedule) {
+            const targetMotorId = getScheduleTargetMotorId();
+            const target = targetMotorId > 0 ? String(targetMotorId).padStart(4, "0") : "all";
+
+            return schedule.map(function(entry) {
+                const safe = normalizeScheduleEntry(entry, 0);
+                return {
+                    enabled: safe.enabled === true,
+                    target: target,
+                    on: String(safe.on_hour).padStart(2, "0") + ":" + String(safe.on_minute).padStart(2, "0"),
+                    off: String(safe.off_hour).padStart(2, "0") + ":" + String(safe.off_minute).padStart(2, "0")
+                };
+            });
+        }
+
+        function toScheduleEntryFromCloudAlarm(item, index) {
+            const fallback = defaultScheduleConfig()[index];
+            const alarm = item && typeof item === "object" ? item : {};
+            const onText = typeof alarm.on === "string" ? alarm.on : "";
+            const offText = typeof alarm.off === "string" ? alarm.off : "";
+
+            const onParts = onText.split(":");
+            const offParts = offText.split(":");
+            const onHour = Number(onParts[0]);
+            const onMinute = Number(onParts[1]);
+            const offHour = Number(offParts[0]);
+            const offMinute = Number(offParts[1]);
+
+            return {
+                enabled: alarm.enabled === true,
+                on_hour: Number.isFinite(onHour) ? Math.max(0, Math.min(23, onHour)) : fallback.on_hour,
+                on_minute: Number.isFinite(onMinute) ? Math.max(0, Math.min(59, onMinute)) : fallback.on_minute,
+                off_hour: Number.isFinite(offHour) ? Math.max(0, Math.min(23, offHour)) : fallback.off_hour,
+                off_minute: Number.isFinite(offMinute) ? Math.max(0, Math.min(59, offMinute)) : fallback.off_minute
+            };
+        }
+
+        async function saveScheduleToCloud() {
+            const schedule = readScheduleEditor();
+            saveScheduleConfig(schedule);
+
+            const baseUrl = getCloudAlarmApiBaseUrl();
+            const payload = {
+                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
+            };
+
+            try {
+                const response = await fetch(baseUrl + "/api/alarms", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result || result.ok !== true) {
+                    const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                    setScheduleMessage("Cloud save failed: " + errorText);
+                    return;
+                }
+
+                setScheduleMessage("Alarm saved to cloud service.");
+                addLog("Cloud alarm updated from dashboard.");
+                renderAllMotors();
+            } catch (err) {
+                setScheduleMessage("Cloud save failed: " + err.message);
+            }
+        }
+
+        async function loadScheduleFromCloud(silent) {
+            const baseUrl = getCloudAlarmApiBaseUrl();
+
+            try {
+                const response = await fetch(baseUrl + "/api/alarms", {
+                    method: "GET"
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result || result.ok !== true || !Array.isArray(result.alarms)) {
+                    if (!silent) {
+                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                        setScheduleMessage("Cloud load failed: " + errorText);
+                    }
+                    return;
+                }
+
+                const schedule = [];
+                for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                    schedule.push(toScheduleEntryFromCloudAlarm(result.alarms[index], index));
+                }
+
+                saveScheduleConfig(schedule);
+                renderScheduleEditor();
+                renderAllMotors();
+
+                if (!silent) {
+                    setScheduleMessage("Alarm loaded from cloud service.");
+                }
+            } catch (err) {
+                if (!silent) {
+                    setScheduleMessage("Cloud load failed: " + err.message);
+                }
+            }
         }
 
         function sendScheduleConfigToEsp() {
@@ -2843,6 +2965,7 @@ q<!DOCTYPE html>
             renderScheduleEditor();
             renderDashboardAlarmSettingsEditor();
             renderStarterSequenceEditor();
+            loadScheduleFromCloud(true);
             buildCharts();
             connectMqtt();
             setInterval(function() {
