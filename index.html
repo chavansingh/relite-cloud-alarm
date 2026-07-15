@@ -1,0 +1,2802 @@
+q<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor Controller Device</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top right, #2f6fa0 0%, #1b3a57 45%, #0f2438 100%);
+            min-height: 100vh;
+            padding: 18px;
+            color: #142033;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        .brand-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .brand-logo {
+            width: 78px;
+            height: 78px;
+            border-radius: 12px;
+            object-fit: cover;
+            background: #fff;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 34px;
+            letter-spacing: 0.5px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+        }
+
+        .panel-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #16365c;
+            margin-bottom: 10px;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .status-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            text-align: right;
+        }
+
+        .hardware-mode-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #e8edf4;
+            color: #16365c;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .hardware-mode-chip.manual {
+            background: #f4e4de;
+            color: #9b4b19;
+        }
+
+        .hardware-mode-detail {
+            font-size: 12px;
+            color: #35506f;
+            font-weight: 600;
+        }
+
+        .dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #dc3545;
+            box-shadow: 0 0 12px rgba(220, 53, 69, 0.65);
+        }
+
+        .dot.connected {
+            background: #28a745;
+            box-shadow: 0 0 12px rgba(40, 167, 69, 0.65);
+        }
+
+        .motor-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .motor-card {
+            border-radius: 12px;
+            border: 2px solid #d4dde8;
+            background: linear-gradient(160deg, #f8fbff 0%, #edf3fb 100%);
+            padding: 10px;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+
+        .motor-card.on {
+            border-color: #2ea35f;
+            box-shadow: 0 0 0 2px rgba(46, 163, 95, 0.2), 0 8px 16px rgba(46, 163, 95, 0.2);
+        }
+
+        .motor-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .motor-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .motor-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #143257;
+        }
+
+        .motor-state {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #e8edf4;
+            color: #53667f;
+        }
+
+        .motor-state.on {
+            background: #d8f4e3;
+            color: #1f7d48;
+        }
+
+        .motor-topic {
+            font-size: 11px;
+            color: #60748e;
+            margin-bottom: 8px;
+            min-height: 16px;
+            word-break: break-word;
+        }
+
+        .motor-hw-mode {
+            font-size: 11px;
+            font-weight: 700;
+            color: #1f5f99;
+            background: #e4effd;
+            border: 1px solid #bad3f3;
+            border-radius: 8px;
+            padding: 4px 8px;
+            margin-bottom: 8px;
+        }
+
+        .motor-hw-mode.manual {
+            color: #8a4a1a;
+            background: #f8ece2;
+            border-color: #efc9a9;
+        }
+
+        .motor-device-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            background: #eff4fb;
+            border: 1px solid #d0dced;
+            font-size: 11px;
+            color: #35506f;
+        }
+
+        .device-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            color: #9b2d2d;
+        }
+
+        .device-state.online {
+            color: #1f7d48;
+        }
+
+        .device-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #d74343;
+            box-shadow: 0 0 6px rgba(215, 67, 67, 0.55);
+        }
+
+        .device-state.online .device-dot {
+            background: #2aa85f;
+            box-shadow: 0 0 6px rgba(42, 168, 95, 0.55);
+        }
+
+        .motor-layout {
+            display: grid;
+            grid-template-columns: 210px 1fr;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .motor-left-square,
+        .motor-right-params {
+            border-radius: 9px;
+            background: #e9f0f8;
+            border: 1px solid #d2ddec;
+            padding: 8px;
+            min-height: 180px;
+        }
+
+        .motor-left-square {
+            display: grid;
+            grid-template-rows: auto auto auto auto 1fr;
+            gap: 8px;
+        }
+
+        .name-edit-grid {
+            display: none;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .name-edit-grid.open {
+            display: grid;
+        }
+
+        .motor-name {
+            cursor: pointer;
+        }
+
+        .name-edit-input {
+            width: 100%;
+            border: 1px solid #bdccde;
+            border-radius: 6px;
+            padding: 6px 7px;
+            font-size: 11px;
+            color: #17395f;
+            background: #ffffff;
+        }
+
+        .name-save-btn {
+            border: none;
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffffff;
+            background: #2a78c5;
+            cursor: pointer;
+        }
+
+        .motor-right-params {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 8px;
+        }
+
+        .motor-right-params .mini-title {
+            margin-bottom: 0;
+        }
+
+        .mini-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: #4f6681;
+            margin-bottom: 5px;
+            letter-spacing: 0.2px;
+        }
+
+        .status-mini-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .motor-status-chip {
+            font-size: 11px;
+            font-weight: 700;
+            color: #53667f;
+            background: #e8edf4;
+            border-radius: 999px;
+            padding: 3px 9px;
+        }
+
+        .motor-status-chip.on {
+            color: #1f7d48;
+            background: #d8f4e3;
+        }
+
+        .motor-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 7px;
+            align-content: end;
+        }
+
+        .bulk-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .schedule-grid {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .schedule-row {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr 0.9fr 0.8fr 0.8fr;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e5eaf2;
+        }
+
+        .schedule-row:last-child {
+            border-bottom: none;
+        }
+
+        .schedule-row label {
+            font-size: 12px;
+            color: #31506b;
+            font-weight: 700;
+        }
+
+        .schedule-row input,
+        .schedule-row select {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #cbd4de;
+            padding: 10px 12px;
+            background: #ffffff;
+            color: #1c3b57;
+            font-size: 13px;
+        }
+
+        .schedule-target-value {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f5f8fc;
+            border-radius: 10px;
+            color: #1c3b57;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .schedule-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .schedule-message {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #21425a;
+        }
+
+        .schedule-note {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #39516f;
+        }
+
+        .alarm-retry-box {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid #d5dfec;
+            border-radius: 10px;
+            background: #f3f7fc;
+        }
+
+        .alarm-retry-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            align-items: end;
+        }
+
+        .alarm-retry-row label {
+            font-size: 12px;
+            color: #31506b;
+            font-weight: 700;
+        }
+
+        .alarm-retry-row input {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #cbd4de;
+            padding: 10px 12px;
+            background: #ffffff;
+            color: #1c3b57;
+            font-size: 13px;
+        }
+
+        .motor-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffffff;
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+
+        .motor-btn-on {
+            background: #2fa764;
+        }
+
+        .motor-btn-off {
+            background: #dd4455;
+        }
+
+        .motor-btn-mode {
+            background: #2a78c5;
+        }
+
+        .motor-btn-mode.manual {
+            background: #6c7a89;
+        }
+
+        .motor-param-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .param-values-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.85fr) minmax(0, 0.85fr);
+            gap: 8px;
+        }
+
+        .param-value-pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 4px 6px;
+            border-radius: 8px;
+            background: linear-gradient(180deg, #f4f8fd 0%, #e7eef7 100%);
+            border: 1px solid #d5deea;
+            white-space: nowrap;
+        }
+
+        .param-value-pill.voltage {
+            background: linear-gradient(180deg, #e4f0ff 0%, #d4e8ff 100%);
+            border-color: #8fbfff;
+        }
+
+        .param-value-pill.current {
+            background: linear-gradient(180deg, #e2f7ec 0%, #d0f1e1 100%);
+            border-color: #86d6ad;
+        }
+
+        .param-value-pill.power {
+            background: linear-gradient(180deg, #fff1dd 0%, #ffe7c0 100%);
+            border-color: #f0bf74;
+        }
+
+        .param-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #59708a;
+        }
+
+        .param-sep {
+            font-size: 11px;
+            font-weight: 700;
+            color: #4b5f79;
+        }
+
+        .param-mini-chart {
+            width: 100%;
+            height: 170px;
+            border-radius: 7px;
+            background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+            border: 1px solid #ccd8e7;
+        }
+
+        .param-value {
+            font-size: 11px;
+            font-weight: 800;
+            color: #143257;
+            min-width: 0;
+            text-align: left;
+        }
+
+        .voltage-inline-chip {
+            font-size: 10px;
+            font-weight: 700;
+            color: #9b2d2d;
+            background: #fbe6e6;
+            border-radius: 999px;
+            padding: 2px 6px;
+            margin-left: 4px;
+        }
+
+        .voltage-inline-chip.ok {
+            color: #1f7d48;
+            background: #d8f4e3;
+        }
+
+        .motor-btn:disabled {
+            cursor: not-allowed;
+            filter: grayscale(0.45);
+        }
+
+        .manual-timer-select {
+            width: 100%;
+            border: 1px solid #bdccde;
+            border-radius: 6px;
+            padding: 5px 6px;
+            font-size: 11px;
+            color: #17395f;
+            background: #ffffff;
+        }
+
+        .manual-timer-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #35506f;
+            background: #e8edf4;
+            border-radius: 7px;
+            padding: 4px 8px;
+            text-align: center;
+        }
+
+        .motor-feedback {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #4e637d;
+            min-height: 18px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .stat {
+            border-radius: 10px;
+            padding: 12px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #1c4870, #2b6b9c);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.95;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .chart-card h3 {
+            color: #16365c;
+            margin-bottom: 7px;
+            font-size: 14px;
+        }
+
+        .chart-box {
+            height: 220px;
+        }
+
+        .log {
+            background: #0f1720;
+            color: #d2e9ff;
+            border-radius: 10px;
+            padding: 10px;
+            height: 170px;
+            overflow-y: auto;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .log-line {
+            margin-bottom: 6px;
+        }
+
+        .comm-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 10px;
+        }
+
+        .comm-card {
+            border-radius: 10px;
+            padding: 10px;
+            background: #eaf0f7;
+        }
+
+        .comm-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #16365c;
+            margin-bottom: 4px;
+        }
+
+        .comm-count {
+            font-size: 22px;
+            font-weight: 700;
+            color: #143257;
+            margin-bottom: 4px;
+        }
+
+        .comm-last {
+            font-size: 12px;
+            color: #4e637d;
+            word-break: break-word;
+            min-height: 36px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 26px;
+            }
+
+            .motor-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .motor-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .motor-left-square,
+            .motor-right-params {
+                min-height: auto;
+            }
+
+            .param-mini-chart {
+                height: 130px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="brand-header">
+            <img class="brand-logo" src="WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg" alt="Relite Solutions Logo">
+            <h1>Motor Controller Device</h1>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Connection Status</h2>
+            <div class="status-row">
+                <div class="status-left">
+                    <div class="dot" id="statusDot"></div>
+                    <div id="statusText">Connecting...</div>
+                </div>
+                <div id="deviceSummary">Device Online: 0/30</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Motor Start/Stop Control (1-30)</h2>
+            <div class="bulk-actions">
+                <button class="motor-btn motor-btn-on" onclick="sendAllMotorCommand(true)">START ALL</button>
+                <button class="motor-btn motor-btn-off" onclick="sendAllMotorCommand(false)">STOP ALL</button>
+            </div>
+            <div class="motor-grid" id="motorGrid"></div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Motor Schedule (3 alarms)</h2>
+            <div class="schedule-target">
+                <label for="scheduleTargetMotor">Target Motor</label>
+                <select id="scheduleTargetMotor"></select>
+            </div>
+            <div class="schedule-grid" id="scheduleGrid"></div>
+            <div class="schedule-actions">
+                <button class="motor-btn motor-btn-mode" onclick="sendScheduleConfigToEsp()">Save Schedule to Device</button>
+                <button class="motor-btn motor-btn-on" onclick="saveScheduleConfig(readScheduleEditor())">Save Schedule Locally</button>
+            </div>
+            <div class="alarm-retry-box">
+                <div class="alarm-retry-row">
+                    <div>
+                        <label><input type="checkbox" id="dashAlarmEnabled"> Dashboard Alarm Sender ON</label>
+                    </div>
+                    <div>
+                        <label for="dashAlarmOnRetryCount">ON total tries</label>
+                        <input type="number" id="dashAlarmOnRetryCount" min="1" max="12" step="1" value="3">
+                    </div>
+                    <div>
+                        <label for="dashAlarmOffRetryCount">OFF total tries</label>
+                        <input type="number" id="dashAlarmOffRetryCount" min="1" max="12" step="1" value="3">
+                    </div>
+                    <div>
+                        <label for="dashAlarmRetryGap">Gap between tries (minutes)</label>
+                        <input type="number" id="dashAlarmRetryGap" min="1" max="60" step="1" value="5">
+                    </div>
+                    <div>
+                        <button class="motor-btn motor-btn-mode" onclick="saveDashboardAlarmSettingsFromEditor()">Save Alarm Sender</button>
+                    </div>
+                </div>
+            </div>
+            <div class="schedule-message" id="scheduleMessage">Schedule changes are saved locally and can be pushed to the device.</div>
+            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Optional Dashboard Alarm Sender repeats ON/OFF commands while this page stays open and MQTT is connected.</div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Starter Sequence Settings</h2>
+            <div class="schedule-target">
+                <label>Target Motors</label>
+                <div class="schedule-target-value">All motors</div>
+            </div>
+            <div class="schedule-grid" id="sequenceGrid"></div>
+            <div class="schedule-actions">
+                <button class="motor-btn motor-btn-mode" onclick="sendStarterSequenceConfigToDevice()">Save Sequence to Device</button>
+                <button class="motor-btn motor-btn-on" onclick="saveStarterSequenceConfig(readStarterSequenceEditor())">Save Sequence Locally</button>
+            </div>
+            <div class="schedule-message" id="sequenceMessage">Sequence settings are saved locally and can be pushed to all motors.</div>
+            <div class="schedule-note">Adjust starter relay timing for D12 ON, D12-to-D14 delay, and D14 ON.</div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Communication Data</h2>
+            <div class="comm-row">
+                <div class="comm-card">
+                    <div class="comm-title">Data Sent (TX)</div>
+                    <div class="comm-count" id="txCount">0</div>
+                    <div class="comm-last" id="txLast">--</div>
+                </div>
+                <div class="comm-card">
+                    <div class="comm-title">Data Received (RX)</div>
+                    <div class="comm-count" id="rxCount">0</div>
+                    <div class="comm-last" id="rxLast">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="panel-title">Live Charts</h2>
+        </div>
+
+        <div class="charts">
+            <div class="chart-card">
+                <h3>Voltage</h3>
+                <div class="chart-box"><canvas id="voltageChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>Current</h3>
+                <div class="chart-box"><canvas id="currentChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>Power</h3>
+                <div class="chart-box"><canvas id="powerChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Activity Log</h2>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const topicPrefix = "relite";
+        const MOTOR_COUNT = 30;
+        let client = null;
+        let isConnected = false;
+        const NAME_EDIT_PASSWORD = "1234";
+        const DEVICE_OFFLINE_MS = 35000;
+        const MANUAL_ON_DURATION_OPTIONS = [10, 20, 40, 60, 120, 180];
+
+        function loadMotorNames(id) {
+            const defaults = {
+                motorName: "Motor " + id,
+                relayName: "Motor " + id
+            };
+
+            try {
+                const raw = localStorage.getItem("relite_motor_labels_" + id);
+                if (!raw) {
+                    return defaults;
+                }
+                const parsed = JSON.parse(raw);
+                const loadedMotorName = (parsed.motorName || defaults.motorName).toString();
+                return {
+                    motorName: loadedMotorName,
+                    relayName: loadedMotorName
+                };
+            } catch (err) {
+                return defaults;
+            }
+        }
+
+        function saveMotorNames(motor) {
+            try {
+                localStorage.setItem(
+                    "relite_motor_labels_" + motor.id,
+                    JSON.stringify({
+                        motorName: motor.motorName,
+                        relayName: motor.relayName
+                    })
+                );
+                return true;
+            } catch (err) {
+                return false;
+            }
+        }
+
+        const SCHEDULE_SLOTS = 3;
+        const DASHBOARD_ALARM_SETTINGS_KEY = "relite_dashboard_alarm_settings";
+        const MANUAL_OFF_GUARD_KEY = "relite_manual_off_guard";
+        const dashboardAlarmState = {
+            lastTriggerKeyMap: {},
+            alarmJobs: {}
+        };
+
+        function loadManualOffGuardState() {
+            try {
+                const raw = localStorage.getItem(MANUAL_OFF_GUARD_KEY);
+                if (!raw) {
+                    return {};
+                }
+                const parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === "object") ? parsed : {};
+            } catch (err) {
+                return {};
+            }
+        }
+
+        function saveManualOffGuardState(state) {
+            try {
+                localStorage.setItem(MANUAL_OFF_GUARD_KEY, JSON.stringify(state || {}));
+            } catch (err) {
+                // ignore storage failures and continue runtime behavior
+            }
+        }
+
+        function setManualOffGuard(targetMotorId, active) {
+            const guard = loadManualOffGuardState();
+            if (targetMotorId > 0) {
+                guard[String(targetMotorId)] = !!active;
+            } else {
+                guard.ALL = !!active;
+            }
+            saveManualOffGuardState(guard);
+        }
+
+        function isManualOffGuardActiveForTarget(targetMotorId) {
+            const guard = loadManualOffGuardState();
+            if (guard.ALL === true) {
+                return true;
+            }
+            if (targetMotorId > 0) {
+                return guard[String(targetMotorId)] === true;
+            }
+            const keys = Object.keys(guard);
+            return keys.some(function(k) {
+                return k !== "ALL" && guard[k] === true;
+            });
+        }
+
+        function clearManualOffGuardOnAutoMode(id) {
+            if (!id) {
+                return;
+            }
+            setManualOffGuard(id, false);
+        }
+
+        function cancelQueuedOffJobsForTarget(targetMotorId) {
+            const jobIds = Object.keys(dashboardAlarmState.alarmJobs);
+            jobIds.forEach(function(jobId) {
+                const job = dashboardAlarmState.alarmJobs[jobId];
+                if (!job || job.command !== "OFF") {
+                    return;
+                }
+
+                if (targetMotorId > 0) {
+                    if (job.targetMotorId === targetMotorId || job.targetMotorId === 0) {
+                        delete dashboardAlarmState.alarmJobs[jobId];
+                    }
+                    return;
+                }
+
+                delete dashboardAlarmState.alarmJobs[jobId];
+            });
+        }
+
+        function defaultDashboardAlarmSettings() {
+            return {
+                enabled: false,
+                onRetryCount: 3,
+                offRetryCount: 3,
+                retryGapMinutes: 5
+            };
+        }
+
+        function loadDashboardAlarmSettings() {
+            try {
+                const raw = localStorage.getItem(DASHBOARD_ALARM_SETTINGS_KEY);
+                if (!raw) {
+                    return defaultDashboardAlarmSettings();
+                }
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== "object") {
+                    return defaultDashboardAlarmSettings();
+                }
+                return {
+                    enabled: parsed.enabled === true,
+                    onRetryCount: Number.isFinite(Number(parsed.onRetryCount)) ? Math.max(1, Math.min(12, Number(parsed.onRetryCount))) : 3,
+                    offRetryCount: Number.isFinite(Number(parsed.offRetryCount)) ? Math.max(1, Math.min(12, Number(parsed.offRetryCount))) : 3,
+                    retryGapMinutes: Number.isFinite(Number(parsed.retryGapMinutes)) ? Math.max(1, Math.min(60, Number(parsed.retryGapMinutes))) : 5
+                };
+            } catch (err) {
+                return defaultDashboardAlarmSettings();
+            }
+        }
+
+        function saveDashboardAlarmSettings(settings) {
+            try {
+                localStorage.setItem(DASHBOARD_ALARM_SETTINGS_KEY, JSON.stringify(settings));
+                setScheduleMessage("Dashboard Alarm Sender settings saved.");
+                return true;
+            } catch (err) {
+                setScheduleMessage("Failed to save Dashboard Alarm Sender settings.");
+                return false;
+            }
+        }
+
+        function renderDashboardAlarmSettingsEditor() {
+            const settings = loadDashboardAlarmSettings();
+            const enabledElem = document.getElementById("dashAlarmEnabled");
+            const onRetryCountElem = document.getElementById("dashAlarmOnRetryCount");
+            const offRetryCountElem = document.getElementById("dashAlarmOffRetryCount");
+            const retryGapElem = document.getElementById("dashAlarmRetryGap");
+
+            if (enabledElem) {
+                enabledElem.checked = settings.enabled;
+            }
+            if (onRetryCountElem) {
+                onRetryCountElem.value = String(settings.onRetryCount);
+            }
+            if (offRetryCountElem) {
+                offRetryCountElem.value = String(settings.offRetryCount);
+            }
+            if (retryGapElem) {
+                retryGapElem.value = String(settings.retryGapMinutes);
+            }
+        }
+
+        function readDashboardAlarmSettingsEditor() {
+            const current = loadDashboardAlarmSettings();
+            const enabledElem = document.getElementById("dashAlarmEnabled");
+            const onRetryCountElem = document.getElementById("dashAlarmOnRetryCount");
+            const offRetryCountElem = document.getElementById("dashAlarmOffRetryCount");
+            const retryGapElem = document.getElementById("dashAlarmRetryGap");
+
+            const next = {
+                enabled: enabledElem ? enabledElem.checked : current.enabled,
+                onRetryCount: onRetryCountElem ? Number(onRetryCountElem.value) : current.onRetryCount,
+                offRetryCount: offRetryCountElem ? Number(offRetryCountElem.value) : current.offRetryCount,
+                retryGapMinutes: retryGapElem ? Number(retryGapElem.value) : current.retryGapMinutes
+            };
+
+            next.onRetryCount = Number.isFinite(next.onRetryCount) ? Math.max(1, Math.min(12, next.onRetryCount)) : current.onRetryCount;
+            next.offRetryCount = Number.isFinite(next.offRetryCount) ? Math.max(1, Math.min(12, next.offRetryCount)) : current.offRetryCount;
+            next.retryGapMinutes = Number.isFinite(next.retryGapMinutes) ? Math.max(1, Math.min(60, next.retryGapMinutes)) : current.retryGapMinutes;
+            return next;
+        }
+
+        function saveDashboardAlarmSettingsFromEditor() {
+            const settings = readDashboardAlarmSettingsEditor();
+            const ok = saveDashboardAlarmSettings(settings);
+            if (ok) {
+                addLog("Dashboard Alarm Sender updated: enabled=" + settings.enabled + ", ON retries=" + settings.onRetryCount + ", OFF retries=" + settings.offRetryCount + ", gap=" + settings.retryGapMinutes + "m");
+            }
+            renderDashboardAlarmSettingsEditor();
+        }
+
+        function getScheduleTargetMotorId() {
+            const select = document.getElementById("scheduleTargetMotor");
+            if (!select || !select.value) {
+                return 0;
+            }
+            const id = Number(select.value);
+            if (!Number.isFinite(id) || id < 1 || id > MOTOR_COUNT) {
+                return 0;
+            }
+            return id;
+        }
+
+        function isTargetOnlineByMotorId(targetMotorId) {
+            if (targetMotorId > 0) {
+                const motor = motors.find(function(m) { return m.id === targetMotorId; });
+                return !!(motor && motor.deviceOnline);
+            }
+            return motors.some(function(m) { return m.deviceOnline; });
+        }
+
+        function queueDashboardAlarmJob(command, sourceLabel) {
+            const settings = loadDashboardAlarmSettings();
+            const targetMotorId = getScheduleTargetMotorId();
+            if (command === "OFF" && isManualOffGuardActiveForTarget(targetMotorId)) {
+                addLog("Dashboard alarm OFF blocked by manual ON lock. Send manual OFF to clear lock.");
+                return;
+            }
+            const retryCount = command === "OFF" ? settings.offRetryCount : settings.onRetryCount;
+            const gapMs = settings.retryGapMinutes * 60 * 1000;
+            const nowMs = Date.now();
+            const jobId = sourceLabel.replace(/\s+/g, "_") + "_" + command + "_" + nowMs;
+
+            dashboardAlarmState.alarmJobs[jobId] = {
+                id: jobId,
+                command: command,
+                sourceLabel: sourceLabel,
+                topic: getScheduleTargetTopic(),
+                targetMotorId: targetMotorId,
+                retryCount: retryCount,
+                gapMs: gapMs,
+                attemptsSent: 0,
+                nextAttemptAtMs: nowMs,
+                expiresAtMs: nowMs + (retryCount * gapMs)
+            };
+
+            addLog("Dashboard alarm queued: " + sourceLabel + " " + command + " | tries=" + retryCount + " | gap=" + settings.retryGapMinutes + "m");
+        }
+
+        function processDashboardAlarmJobs() {
+            const nowMs = Date.now();
+            const jobIds = Object.keys(dashboardAlarmState.alarmJobs);
+            if (jobIds.length === 0) {
+                return;
+            }
+
+            jobIds.forEach(function(jobId) {
+                const job = dashboardAlarmState.alarmJobs[jobId];
+                if (!job) {
+                    return;
+                }
+
+                if (job.attemptsSent >= job.retryCount || nowMs > job.expiresAtMs) {
+                    delete dashboardAlarmState.alarmJobs[jobId];
+                    return;
+                }
+
+                if (nowMs < job.nextAttemptAtMs) {
+                    return;
+                }
+
+                if (!isConnected || !client) {
+                    return;
+                }
+
+                if (!isTargetOnlineByMotorId(job.targetMotorId)) {
+                    return;
+                }
+
+                if (job.command === "OFF" && isManualOffGuardActiveForTarget(job.targetMotorId)) {
+                    addLog("Dashboard alarm OFF skipped (manual ON lock active)");
+                    delete dashboardAlarmState.alarmJobs[jobId];
+                    return;
+                }
+
+                const nextAttemptNumber = job.attemptsSent + 1;
+                client.publish(job.topic, job.command, { qos: 1, retain: false }, function(err) {
+                    if (err) {
+                        addLog("Dashboard alarm " + job.command + " attempt " + nextAttemptNumber + " failed: " + err.message);
+                        return;
+                    }
+
+                    trackTx(job.topic, job.command);
+                    addLog("Dashboard alarm " + job.sourceLabel + " -> " + job.command + " attempt " + nextAttemptNumber + "/" + job.retryCount);
+                });
+
+                job.attemptsSent += 1;
+                job.nextAttemptAtMs = nowMs + job.gapMs;
+
+                if (job.attemptsSent >= job.retryCount) {
+                    delete dashboardAlarmState.alarmJobs[jobId];
+                }
+            });
+        }
+
+        function checkAndTriggerDashboardAlarm() {
+            const settings = loadDashboardAlarmSettings();
+            if (!settings.enabled) {
+                return;
+            }
+            if (!isConnected || !client) {
+                return;
+            }
+
+            const now = new Date();
+            const hh = now.getHours();
+            const mm = now.getMinutes();
+            const dayKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+            const schedule = loadScheduleConfig();
+
+            schedule.forEach(function(entry, index) {
+                if (!entry || entry.enabled !== true) {
+                    return;
+                }
+
+                if (entry.on_hour === hh && entry.on_minute === mm) {
+                    const onKey = dayKey + "|" + index + "|ON|" + hh + ":" + mm;
+                    if (!dashboardAlarmState.lastTriggerKeyMap["ON_" + index] || dashboardAlarmState.lastTriggerKeyMap["ON_" + index] !== onKey) {
+                        dashboardAlarmState.lastTriggerKeyMap["ON_" + index] = onKey;
+                        queueDashboardAlarmJob("ON", "alarm " + (index + 1) + " ON");
+                    }
+                }
+
+                if (entry.off_hour === hh && entry.off_minute === mm) {
+                    const offKey = dayKey + "|" + index + "|OFF|" + hh + ":" + mm;
+                    if (!dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] || dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] !== offKey) {
+                        dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] = offKey;
+                        queueDashboardAlarmJob("OFF", "alarm " + (index + 1) + " OFF");
+                    }
+                }
+            });
+        }
+
+        function defaultScheduleConfig() {
+            return [
+                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 7, off_minute: 0 },
+                { enabled: true, on_hour: 12, on_minute: 0, off_hour: 13, off_minute: 0 },
+                { enabled: true, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
+            ];
+        }
+
+        function loadScheduleConfig() {
+            try {
+                const raw = localStorage.getItem("relite_schedule_config");
+                if (!raw) {
+                    return defaultScheduleConfig();
+                }
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed) || parsed.length !== SCHEDULE_SLOTS) {
+                    return defaultScheduleConfig();
+                }
+                return parsed.map(function(item, index) {
+                    return {
+                        enabled: item.enabled === true,
+                        on_hour: Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : (Number.isFinite(Number(item.hour)) ? Math.max(0, Math.min(23, Number(item.hour))) : defaultScheduleConfig()[index].on_hour),
+                        on_minute: Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : (Number.isFinite(Number(item.minute)) ? Math.max(0, Math.min(59, Number(item.minute))) : defaultScheduleConfig()[index].on_minute),
+                        off_hour: Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : (Number.isFinite(Number(item.hour)) ? Math.max(0, Math.min(23, Number(item.hour) + 1)) : defaultScheduleConfig()[index].off_hour),
+                        off_minute: Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaultScheduleConfig()[index].off_minute
+                    };
+                });
+            } catch (err) {
+                return defaultScheduleConfig();
+            }
+        }
+
+        function saveScheduleConfig(schedule) {
+            try {
+                localStorage.setItem("relite_schedule_config", JSON.stringify(schedule));
+                setScheduleMessage("Schedule saved locally.");
+                return true;
+            } catch (err) {
+                setScheduleMessage("Failed to save schedule locally.");
+                return false;
+            }
+        }
+
+        function setScheduleMessage(text) {
+            const message = document.getElementById("scheduleMessage");
+            if (message) {
+                message.textContent = text;
+            }
+        }
+
+        function normalizeScheduleEntry(item, index) {
+            const defaults = defaultScheduleConfig()[index];
+            return {
+                enabled: item.enabled === true,
+                on_hour: Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : defaults.on_hour,
+                on_minute: Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : defaults.on_minute,
+                off_hour: Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : defaults.off_hour,
+                off_minute: Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaults.off_minute
+            };
+        }
+
+        function renderScheduleEditor() {
+            populateScheduleMotorSelect();
+            const scheduleGrid = document.getElementById("scheduleGrid");
+            if (!scheduleGrid) {
+                return;
+            }
+
+            const schedule = loadScheduleConfig();
+            scheduleGrid.innerHTML = "";
+
+            schedule.forEach(function(entry, index) {
+                const row = document.createElement("div");
+                row.className = "schedule-row";
+                row.innerHTML = "<label>Alarm " + (index + 1) + "</label>" +
+                    "<div style=\"display:flex;gap:0.5rem;align-items:center;\">" +
+                        "<span style=\"white-space:nowrap;\">ON</span>" +
+                        "<input type=\"time\" id=\"schedule-on-time-" + index + "\" value=\"" + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + "\">" +
+                        "<span style=\"white-space:nowrap;\">OFF</span>" +
+                        "<input type=\"time\" id=\"schedule-off-time-" + index + "\" value=\"" + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0") + "\">" +
+                        "<label style=\"margin-left:auto;\"><input type=\"checkbox\" id=\"schedule-enabled-" + index + "\" " + (entry.enabled ? "checked" : "") + "> Enabled</label>" +
+                    "</div>" +
+                    "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0")) : "Disabled") + "</div>";
+                scheduleGrid.appendChild(row);
+            });
+        }
+
+        function readScheduleEditor() {
+            const schedule = [];
+            for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                const onTimeElem = document.getElementById("schedule-on-time-" + index);
+                const offTimeElem = document.getElementById("schedule-off-time-" + index);
+                const enabledElem = document.getElementById("schedule-enabled-" + index);
+                let onHour = 6;
+                let onMinute = 0;
+                let offHour = 7;
+                let offMinute = 0;
+                if (onTimeElem && onTimeElem.value) {
+                    const parts = onTimeElem.value.split(":");
+                    if (parts.length === 2) {
+                        onHour = Math.max(0, Math.min(23, Number(parts[0])));
+                        onMinute = Math.max(0, Math.min(59, Number(parts[1])));
+                    }
+                }
+                if (offTimeElem && offTimeElem.value) {
+                    const parts = offTimeElem.value.split(":");
+                    if (parts.length === 2) {
+                        offHour = Math.max(0, Math.min(23, Number(parts[0])));
+                        offMinute = Math.max(0, Math.min(59, Number(parts[1])));
+                    }
+                }
+                schedule.push({
+                    enabled: enabledElem ? enabledElem.checked : true,
+                    on_hour: onHour,
+                    on_minute: onMinute,
+                    off_hour: offHour,
+                    off_minute: offMinute
+                });
+            }
+            return schedule;
+        }
+
+        function getScheduleTargetTopic() {
+            const select = document.getElementById("scheduleTargetMotor");
+            if (!select) {
+                return topicPrefix + "/motor/all/control";
+            }
+            const id4 = select.value;
+            return id4 ? topicPrefix + "/motor/" + id4 + "/control" : topicPrefix + "/motor/all/control";
+        }
+
+        function sendScheduleConfigToEsp() {
+            const schedule = readScheduleEditor();
+            if (!isConnected || !client) {
+                setScheduleMessage("MQTT is not connected. Connect before sending schedule.");
+                return;
+            }
+
+            saveScheduleConfig(schedule);
+
+            const payload = {
+                schedule: schedule.map(function(entry) {
+                    return {
+                        enabled: entry.enabled,
+                        on_hour: entry.on_hour,
+                        on_minute: entry.on_minute,
+                        off_hour: entry.off_hour,
+                        off_minute: entry.off_minute
+                    };
+                })
+            };
+
+            const targetTopic = getScheduleTargetTopic();
+            const message = JSON.stringify(payload);
+            client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    setScheduleMessage("Failed to send schedule to device.");
+                    return;
+                }
+                setScheduleMessage("Schedule sent to device.");
+                addLog("Schedule sent to " + targetTopic + ": " + message);
+            });
+        }
+
+        function updateScheduleFromPayload(scheduleArray) {
+            if (!Array.isArray(scheduleArray)) {
+                return;
+            }
+
+            const schedule = [];
+            for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                const item = scheduleArray[index] || {};
+                const onHour = Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : defaultScheduleConfig()[index].on_hour;
+                const onMinute = Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : defaultScheduleConfig()[index].on_minute;
+                const offHour = Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : defaultScheduleConfig()[index].off_hour;
+                const offMinute = Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaultScheduleConfig()[index].off_minute;
+                const enabled = item.enabled === true;
+                schedule.push({ enabled: enabled, on_hour: onHour, on_minute: onMinute, off_hour: offHour, off_minute: offMinute });
+            }
+            saveScheduleConfig(schedule);
+            renderScheduleEditor();
+            setScheduleMessage("Schedule updated from device status.");
+        }
+
+        function defaultStarterSequenceConfig() {
+            return {
+                relay12_ms: 15000,
+                d12_to_d14_delay_ms: 10000,
+                relay14_ms: 5000
+            };
+        }
+
+        function loadStarterSequenceConfig() {
+            try {
+                const raw = localStorage.getItem("relite_starter_sequence_config");
+                if (!raw) {
+                    return defaultStarterSequenceConfig();
+                }
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== "object") {
+                    return defaultStarterSequenceConfig();
+                }
+
+                const defaults = defaultStarterSequenceConfig();
+                return {
+                    relay12_ms: Number.isFinite(Number(parsed.relay12_ms)) ? Math.max(1000, Math.min(60000, Number(parsed.relay12_ms))) : defaults.relay12_ms,
+                    d12_to_d14_delay_ms: Number.isFinite(Number(parsed.d12_to_d14_delay_ms)) ? Math.max(0, Math.min(60000, Number(parsed.d12_to_d14_delay_ms))) : defaults.d12_to_d14_delay_ms,
+                    relay14_ms: Number.isFinite(Number(parsed.relay14_ms)) ? Math.max(1000, Math.min(60000, Number(parsed.relay14_ms))) : defaults.relay14_ms
+                };
+            } catch (err) {
+                return defaultStarterSequenceConfig();
+            }
+        }
+
+        function saveStarterSequenceConfig(config) {
+            try {
+                localStorage.setItem("relite_starter_sequence_config", JSON.stringify(config));
+                setStarterSequenceMessage("Sequence settings saved locally.");
+                return true;
+            } catch (err) {
+                setStarterSequenceMessage("Failed to save sequence settings locally.");
+                return false;
+            }
+        }
+
+        function readStarterSequenceEditor() {
+            const config = loadStarterSequenceConfig();
+            const sequence = {
+                relay12_ms: config.relay12_ms,
+                d12_to_d14_delay_ms: config.d12_to_d14_delay_ms,
+                relay14_ms: config.relay14_ms
+            };
+
+            const relay12Elem = document.getElementById("sequence-relay12-ms");
+            const delayElem = document.getElementById("sequence-delay-ms");
+            const relay14Elem = document.getElementById("sequence-relay14-ms");
+
+            if (relay12Elem) {
+                const parsed = Number(relay12Elem.value);
+                sequence.relay12_ms = Number.isFinite(parsed) ? Math.max(1000, Math.min(60000, parsed)) : sequence.relay12_ms;
+            }
+            if (delayElem) {
+                const parsed = Number(delayElem.value);
+                sequence.d12_to_d14_delay_ms = Number.isFinite(parsed) ? Math.max(0, Math.min(60000, parsed)) : sequence.d12_to_d14_delay_ms;
+            }
+            if (relay14Elem) {
+                const parsed = Number(relay14Elem.value);
+                sequence.relay14_ms = Number.isFinite(parsed) ? Math.max(1000, Math.min(60000, parsed)) : sequence.relay14_ms;
+            }
+
+            return sequence;
+        }
+
+        function renderStarterSequenceEditor() {
+            const sequenceGrid = document.getElementById("sequenceGrid");
+            if (!sequenceGrid) {
+                return;
+            }
+            const config = loadStarterSequenceConfig();
+            sequenceGrid.innerHTML = "";
+
+            const rows = [
+                { id: "sequence-relay12-ms", label: "D12 ON duration (ms)", value: config.relay12_ms, min: 1000, step: 500 },
+                { id: "sequence-delay-ms", label: "Delay D12 → D14 (ms)", value: config.d12_to_d14_delay_ms, min: 0, step: 500 },
+                { id: "sequence-relay14-ms", label: "D14 ON duration (ms)", value: config.relay14_ms, min: 1000, step: 500 }
+            ];
+
+            rows.forEach(function(row) {
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "schedule-row";
+                rowDiv.innerHTML =
+                    "<div><label for=\"" + row.id + "\">" + row.label + "</label></div>" +
+                    "<div><input type=\"number\" id=\"" + row.id + "\" min=\"" + row.min + "\" step=\"" + row.step + "\" value=\"" + row.value + "\"></div>" +
+                    "<div></div>" +
+                    "<div style=\"font-size:12px;color:#35506f;text-align:right;\">" + (row.value / 1000).toFixed(1) + "s</div>";
+                sequenceGrid.appendChild(rowDiv);
+            });
+        }
+
+        function setStarterSequenceMessage(text) {
+            const message = document.getElementById("sequenceMessage");
+            if (message) {
+                message.textContent = text;
+            }
+        }
+
+        function sendStarterSequenceConfigToDevice() {
+            const sequence = readStarterSequenceEditor();
+            if (!isConnected || !client) {
+                setStarterSequenceMessage("MQTT is not connected. Connect before sending sequence.");
+                return;
+            }
+
+            saveStarterSequenceConfig(sequence);
+
+            const payload = {
+                starter_sequence: {
+                    relay12_ms: sequence.relay12_ms,
+                    d12_to_d14_delay_ms: sequence.d12_to_d14_delay_ms,
+                    relay14_ms: sequence.relay14_ms
+                }
+            };
+
+            const targetTopic = topicPrefix + "/motor/all/control";
+            const message = JSON.stringify(payload);
+            client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    setStarterSequenceMessage("Failed to send sequence to device.");
+                    return;
+                }
+                setStarterSequenceMessage("Sequence sent to device.");
+                addLog("Starter sequence sent to " + targetTopic + ": " + message);
+            });
+        }
+
+        function updateStarterSequenceFromPayload(starterSequence) {
+            if (!starterSequence || typeof starterSequence !== "object") {
+                return;
+            }
+
+            const current = loadStarterSequenceConfig();
+            const updated = {
+                relay12_ms: Number.isFinite(Number(starterSequence.relay12_ms)) ? Math.max(1000, Math.min(60000, Number(starterSequence.relay12_ms))) : current.relay12_ms,
+                d12_to_d14_delay_ms: Number.isFinite(Number(starterSequence.d12_to_d14_delay_ms)) ? Math.max(0, Math.min(60000, Number(starterSequence.d12_to_d14_delay_ms))) : current.d12_to_d14_delay_ms,
+                relay14_ms: Number.isFinite(Number(starterSequence.relay14_ms)) ? Math.max(1000, Math.min(60000, Number(starterSequence.relay14_ms))) : current.relay14_ms
+            };
+
+            saveStarterSequenceConfig(updated);
+            renderStarterSequenceEditor();
+            setStarterSequenceMessage("Sequence updated from device status.");
+        }
+
+        function formatMotorId4(id) {
+            return String(id).padStart(4, "0");
+        }
+
+        function formatMotorId3(id) {
+            return String(id).padStart(3, "0");
+        }
+
+        function readBooleanField(value) {
+            return value === true || value === 1 || value === "1" || value === "true" || value === "TRUE";
+        }
+
+        function parseMaybeJsonText(text) {
+            if (typeof text !== "string") {
+                return null;
+            }
+
+            const trimmed = text.trim();
+            if (!trimmed || (trimmed[0] !== "{" && trimmed[0] !== "[")) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(trimmed);
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function getNumericField(payload, keys) {
+            if (!payload || typeof payload !== "object") {
+                return null;
+            }
+
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                if (!Object.prototype.hasOwnProperty.call(payload, key)) {
+                    continue;
+                }
+
+                const value = payload[key];
+                if (value === null || typeof value === "undefined" || value === "") {
+                    continue;
+                }
+
+                const parsed = Number(value);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+
+                if (typeof value === "string") {
+                    const floatParsed = parseFloat(value);
+                    if (Number.isFinite(floatParsed)) {
+                        return floatParsed;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function getPayloadObject(rawPayload) {
+            if (!rawPayload || typeof rawPayload !== "object") {
+                return null;
+            }
+
+            if (rawPayload.data && typeof rawPayload.data === "object") {
+                return rawPayload.data;
+            }
+            if (rawPayload.payload && typeof rawPayload.payload === "object") {
+                return rawPayload.payload;
+            }
+            if (rawPayload.message && typeof rawPayload.message === "object") {
+                return rawPayload.message;
+            }
+            return rawPayload;
+        }
+
+        function resolveModuleId(payload, topic) {
+            const candidates = [
+                payload && payload.module_id,
+                payload && payload.module_id4,
+                payload && payload.motor_id,
+                payload && payload.id,
+                payload && payload.module,
+                payload && payload.node_id,
+                payload && payload.controller_id,
+                payload && payload.motor_no
+            ];
+
+            for (let i = 0; i < candidates.length; i++) {
+                const n = Number(candidates[i]);
+                if (Number.isInteger(n) && n >= 1 && n <= MOTOR_COUNT) {
+                    return n;
+                }
+            }
+
+            if (typeof topic === "string") {
+                const m = topic.match(/\/motor\/(\d+)\/(telemetry|status)$/i);
+                if (m && m[1]) {
+                    const id = Number(m[1]);
+                    if (Number.isInteger(id) && id >= 1 && id <= MOTOR_COUNT) {
+                        return id;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        function resolveMotorStateFromPayload(payload) {
+            if (!payload || typeof payload !== "object") {
+                return null;
+            }
+
+            if (typeof payload.relay_on !== "undefined") {
+                return readBooleanField(payload.relay_on);
+            }
+
+            if (typeof payload.status !== "undefined") {
+                const statusValue = String(payload.status).trim().toUpperCase();
+                if (statusValue === "ON" || statusValue === "1" || statusValue === "HIGH" || statusValue === "RUNNING") {
+                    return true;
+                }
+                if (statusValue === "OFF" || statusValue === "0" || statusValue === "LOW" || statusValue === "STOPPED") {
+                    return false;
+                }
+            }
+
+            if (typeof payload.x3_running !== "undefined") {
+                return readBooleanField(payload.x3_running);
+            }
+
+            if (typeof payload.x3 !== "undefined") {
+                const x3Value = Number(payload.x3);
+                if (!Number.isNaN(x3Value)) {
+                    return x3Value < 1000;
+                }
+            }
+
+            if (typeof payload.x3_raw !== "undefined") {
+                const x3RawValue = Number(payload.x3_raw);
+                if (!Number.isNaN(x3RawValue)) {
+                    return x3RawValue < 1000;
+                }
+            }
+
+            if (typeof payload.io12_status !== "undefined") {
+                return readBooleanField(payload.io12_status);
+            }
+
+            if (typeof payload.motor !== "undefined") {
+                return readBooleanField(payload.motor);
+            }
+
+            return null;
+        }
+
+        function setHardwareModeStatus(mode, modePin, sourceLabel) {
+            const chip = document.getElementById("hardwareModeChip");
+            const detail = document.getElementById("hardwareModeDetail");
+
+            let normalizedMode = "AUTO";
+            if (typeof mode === "string") {
+                const candidate = mode.trim().toUpperCase();
+                normalizedMode = candidate === "MANUAL" ? "MANUAL" : "AUTO";
+            } else if (typeof mode === "boolean") {
+                normalizedMode = mode ? "AUTO" : "MANUAL";
+            } else if (typeof mode !== "undefined" && mode !== null) {
+                normalizedMode = readBooleanField(mode) ? "AUTO" : "MANUAL";
+            }
+
+            const pinIsHigh = typeof modePin !== "undefined" && modePin !== null && readBooleanField(modePin);
+
+            if (chip) {
+                chip.textContent = "HW MODE: " + normalizedMode;
+                chip.className = normalizedMode === "MANUAL" ? "hardware-mode-chip manual" : "hardware-mode-chip";
+            }
+
+            if (detail) {
+                detail.textContent = "D13: " + (typeof modePin === "undefined" || modePin === null ? "--" : (pinIsHigh ? "HIGH" : "LOW")) + (sourceLabel ? " | " + sourceLabel : "");
+            }
+        }
+
+        const motors = Array.from({ length: MOTOR_COUNT }, function(_, idx) {
+            const id = idx + 1;
+            const id4 = formatMotorId4(id);
+            const id3 = formatMotorId3(id);
+            const names = loadMotorNames(id);
+            return {
+                id: id,
+                id4: id4,
+                id3: id3,
+                state: false,
+                runtimeSeconds: 0,
+                runtimeStartMs: null,
+                voltage: null,
+                voltageR: null,
+                voltageY: null,
+                voltageB: null,
+                current: null,
+                power: null,
+                voltageStatus: "--",
+                faultOk: null,
+                mode: "AUTO",
+                modePin: null,
+                config: {
+                    starterRelay12Ms: 15000,
+                    starterRelay14Ms: 5000,
+                    autoStartDelayMs: 30000,
+                    relayActiveHigh: true
+                },
+                motorName: names.motorName,
+                relayName: names.relayName,
+                history: {
+                    voltage: [],
+                    current: [],
+                    power: []
+                },
+                controlTopic: topicPrefix + "/motor/" + id4 + "/control",
+                statusTopic: topicPrefix + "/motor/" + id4 + "/status",
+                statusKey: "",
+                deviceOnline: false,
+                lastSeenMs: 0,
+                manualTimerActive: false,
+                manualTimerRemainingSec: 0,
+                manualTimerDurationSec: 0
+            };
+        });
+
+        const maxPoints = 30;
+        const chartData = {
+            labels: [],
+            voltage: [],
+            current: [],
+            power: []
+        };
+
+        let voltageChart;
+        let currentChart;
+        let powerChart;
+        let txCount = 0;
+        let rxCount = 0;
+        const motorMiniMaxPoints = 24;
+        const motorSampleSeconds = 5;
+
+        function pushMotorHistory(motor, key, value) {
+            if (value === null || Number.isNaN(value)) {
+                return;
+            }
+            motor.history[key].push(Number(value));
+            if (motor.history[key].length > motorMiniMaxPoints) {
+                motor.history[key].shift();
+            }
+        }
+
+        function drawCombinedMotorChart(canvasId, motor) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                return;
+            }
+
+            const ctx = canvas.getContext("2d");
+            const cssWidth = canvas.clientWidth || 200;
+            const cssHeight = canvas.clientHeight || 42;
+            const dpr = window.devicePixelRatio || 1;
+            const targetWidth = Math.floor(cssWidth * dpr);
+            const targetHeight = Math.floor(cssHeight * dpr);
+
+            if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+            }
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+            const padLeft = 32;
+            const padRight = 8;
+            const padTop = 8;
+            const padBottom = 18;
+            const w = cssWidth - padLeft - padRight;
+            const h = cssHeight - padTop - padBottom;
+
+            if (w <= 0 || h <= 0) {
+                return;
+            }
+
+            // Axes values: Y in power watts, X in time.
+            ctx.font = "10px Segoe UI";
+            ctx.fillStyle = "#60748e";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            const powerValues = motor.history.power || [];
+            const powerMaxObserved = powerValues.length > 0 ? Math.max.apply(null, powerValues) : 0;
+            const powerAxisMax = Math.max(1000, Math.ceil(powerMaxObserved / 500) * 500);
+            const yTicks = [1.0, 0.75, 0.5, 0.25, 0.0];
+            yTicks.forEach(function(tick) {
+                const y = padTop + h - tick * h;
+                ctx.fillText(Math.round(tick * powerAxisMax) + "W", padLeft - 5, y);
+            });
+
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            const rangeSeconds = Math.max(0, (motorMiniMaxPoints - 1) * motorSampleSeconds);
+            const halfSeconds = Math.floor(rangeSeconds / 2);
+            ctx.fillText("-" + rangeSeconds + "s", padLeft, padTop + h + 3);
+            ctx.fillText("-" + halfSeconds + "s", padLeft + w / 2, padTop + h + 3);
+            ctx.fillText("Now", padLeft + w, padTop + h + 3);
+
+            ctx.strokeStyle = "rgba(84, 110, 142, 0.35)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padLeft, padTop);
+            ctx.lineTo(padLeft, padTop + h);
+            ctx.lineTo(padLeft + w, padTop + h);
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(84, 110, 142, 0.25)";
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 3; i++) {
+                const y = padTop + (h * i) / 4;
+                ctx.beginPath();
+                ctx.moveTo(padLeft, y);
+                ctx.lineTo(padLeft + w, y);
+                ctx.stroke();
+            }
+
+            const series = [
+                { values: motor.history.voltage, max: 260, color: "#1f78ff" },
+                { values: motor.history.current, max: 12, color: "#18a85e" },
+                { values: motor.history.power, max: 6000, color: "#e88a00" }
+            ];
+
+            series.forEach(function(item) {
+                const values = item.values;
+                if (!values || values.length === 0) {
+                    return;
+                }
+
+                const denominator = Math.max(1, item.max);
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 2;
+                ctx.lineJoin = "round";
+                ctx.lineCap = "round";
+                ctx.beginPath();
+
+                for (let i = 0; i < values.length; i++) {
+                    const x = padLeft + (w * i) / Math.max(1, (values.length - 1));
+                    const normalized = Math.max(0, Math.min(1, values[i] / denominator));
+                    const y = padTop + h - normalized * h;
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+
+                const last = values[values.length - 1];
+                const lastNormalized = Math.max(0, Math.min(1, last / denominator));
+                const lastX = padLeft + w;
+                const lastY = padTop + h - lastNormalized * h;
+                ctx.fillStyle = item.color;
+                ctx.beginPath();
+                ctx.arc(lastX, lastY, 2.8, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function addLog(message) {
+            const log = document.getElementById("log");
+            const line = document.createElement("div");
+            line.className = "log-line";
+            line.textContent = "[" + new Date().toLocaleTimeString() + "] " + message;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function formatPayloadForView(payload) {
+            const txt = String(payload);
+            if (txt.length > 90) {
+                return txt.slice(0, 90) + "...";
+            }
+            return txt;
+        }
+
+        function trackTx(topic, payload) {
+            txCount += 1;
+            document.getElementById("txCount").textContent = String(txCount);
+            document.getElementById("txLast").textContent = topic + " | " + formatPayloadForView(payload);
+            addLog("TX -> " + topic + " | " + formatPayloadForView(payload));
+        }
+
+        function trackRx(topic, payload) {
+            rxCount += 1;
+            document.getElementById("rxCount").textContent = String(rxCount);
+            document.getElementById("rxLast").textContent = topic + " | " + formatPayloadForView(payload);
+            addLog("RX <- " + topic + " | " + formatPayloadForView(payload));
+        }
+
+        function setConnectionStatus(connected) {
+            isConnected = connected;
+            const dot = document.getElementById("statusDot");
+            const text = document.getElementById("statusText");
+
+            if (connected) {
+                dot.classList.add("connected");
+                text.textContent = "Connected";
+            } else {
+                dot.classList.remove("connected");
+                text.textContent = "Disconnected";
+            }
+        }
+
+        function renderMotorCard(motor) {
+            const card = document.getElementById("motor-card-" + motor.id);
+            const badge = document.getElementById("motor-state-" + motor.id);
+            const motorNameText = document.getElementById("motor-name-text-" + motor.id);
+            const hwModeText = document.getElementById("motor-hw-mode-" + motor.id);
+            const relayNameText = document.getElementById("motor-relay-name-" + motor.id);
+            const runtimeText = document.getElementById("motor-runtime-" + motor.id);
+            const statusChip = document.getElementById("motor-status-chip-" + motor.id);
+            const voltageValue = document.getElementById("motor-voltage-" + motor.id);
+            const buttonMode = document.getElementById("motor-btn-mode-" + motor.id);
+            const voltageFaultChip = document.getElementById("motor-voltage-fault-" + motor.id);
+            const currentValue = document.getElementById("motor-current-" + motor.id);
+            const powerValue = document.getElementById("motor-power-" + motor.id);
+            const deviceState = document.getElementById("motor-device-state-" + motor.id);
+            const deviceLastSeen = document.getElementById("motor-device-last-" + motor.id);
+            const manualDurationSelect = document.getElementById("motor-manual-duration-" + motor.id);
+            const manualTimerLabel = document.getElementById("motor-manual-timer-label-" + motor.id);
+
+            if (!card || !badge || !motorNameText || !hwModeText || !relayNameText || !runtimeText || !statusChip || !buttonMode || !voltageValue || !voltageFaultChip || !currentValue || !powerValue || !deviceState || !deviceLastSeen || !manualDurationSelect || !manualTimerLabel) {
+                return;
+            }
+
+            motorNameText.textContent = motor.motorName;
+            relayNameText.textContent = motor.relayName;
+            const runtimeNow = motor.runtimeSeconds + (motor.runtimeStartMs !== null ? Math.floor((Date.now() - motor.runtimeStartMs) / 1000) : 0);
+            runtimeText.textContent = "RUNNING TIME: " + formatRuntime(runtimeNow);
+
+            badge.textContent = motor.state ? "ON" : "OFF";
+            badge.className = motor.state ? "motor-state on" : "motor-state";
+            statusChip.textContent = motor.state ? "RUNNING" : "STOPPED";
+            if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
+                const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
+                statusChip.textContent += " | TIMER " + leftMin + "m";
+            }
+            statusChip.className = motor.state ? "motor-status-chip on" : "motor-status-chip";
+
+            const durationMin = Number(motor.manualTimerDurationSec) > 0 ? Math.round(Number(motor.manualTimerDurationSec) / 60) : 20;
+            if (document.activeElement !== manualDurationSelect && MANUAL_ON_DURATION_OPTIONS.indexOf(durationMin) >= 0) {
+                manualDurationSelect.value = String(durationMin);
+            }
+
+            if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
+                const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
+                manualTimerLabel.textContent = "TIMER ACTIVE: " + leftMin + "m left";
+                manualTimerLabel.style.color = "#1f7d48";
+            } else {
+                manualTimerLabel.textContent = "TIMER INACTIVE";
+                manualTimerLabel.style.color = "#35506f";
+            }
+
+            buttonMode.textContent = motor.mode === "MANUAL" ? "MANUAL" : "AUTO";
+            buttonMode.className = motor.mode === "MANUAL" ? "motor-btn motor-btn-mode manual" : "motor-btn motor-btn-mode";
+
+            const modePinText = motor.modePin === null ? "--" : (motor.modePin ? "HIGH" : "LOW");
+            hwModeText.textContent = "HW MODE: " + (motor.mode === "MANUAL" ? "MANUAL" : "AUTO") + " | D13: " + modePinText;
+            hwModeText.className = motor.mode === "MANUAL" ? "motor-hw-mode manual" : "motor-hw-mode";
+
+            if (motor.state) {
+                card.classList.add("on");
+            } else {
+                card.classList.remove("on");
+            }
+
+            if (motor.voltageR !== null && motor.voltageY !== null && motor.voltageB !== null) {
+                voltageValue.textContent = "R:" + Number(motor.voltageR).toFixed(1) + " Y:" + Number(motor.voltageY).toFixed(1) + " B:" + Number(motor.voltageB).toFixed(1);
+            } else {
+                const voltageText = motor.voltage === null ? "--" : Number(motor.voltage).toFixed(1) + "V";
+                voltageValue.textContent = voltageText;
+            }
+
+            if (voltageFaultChip) {
+                if (motor.faultOk === null) {
+                    voltageFaultChip.textContent = "--";
+                    voltageFaultChip.className = "voltage-inline-chip";
+                } else if (motor.faultOk) {
+                    voltageFaultChip.textContent = "OK";
+                    voltageFaultChip.className = "voltage-inline-chip ok";
+                } else {
+                    voltageFaultChip.textContent = "FAULT";
+                    voltageFaultChip.className = "voltage-inline-chip";
+                }
+            }
+
+            currentValue.textContent = motor.current === null ? "--" : Number(motor.current).toFixed(2) + "A";
+            powerValue.textContent = motor.power === null ? "--" : Number(motor.power).toFixed(0) + "W";
+
+            const online = !!motor.deviceOnline;
+            const deviceText = online ? "ONLINE" : "OFFLINE";
+            deviceState.className = online ? "device-state online" : "device-state";
+            deviceState.innerHTML = "<span class=\"device-dot\"></span><span>controllar-" + motor.id3 + " " + deviceText + "</span>";
+            deviceLastSeen.textContent = "Last seen: " + (motor.lastSeenMs ? new Date(motor.lastSeenMs).toLocaleTimeString() : "--");
+
+            drawCombinedMotorChart("motor-combined-chart-" + motor.id, motor);
+
+            const runningCount = motors.filter(function(m) { return m.state; }).length;
+            const runningValue = document.getElementById("runningValue");
+            if (runningValue) {
+                runningValue.textContent = String(runningCount);
+            }
+
+            updateDeviceSummary();
+        }
+
+        function updateDeviceSummary() {
+            const summary = document.getElementById("deviceSummary");
+            if (!summary) {
+                return;
+            }
+            const onlineCount = motors.filter(function(m) { return m.deviceOnline; }).length;
+            summary.textContent = "Device Online: " + onlineCount + "/" + MOTOR_COUNT;
+        }
+
+        function formatRuntime(totalSeconds) {
+            const safe = Math.max(0, Number(totalSeconds) || 0);
+            const hh = Math.floor(safe / 3600).toString().padStart(2, "0");
+            const mm = Math.floor((safe % 3600) / 60).toString().padStart(2, "0");
+            const ss = Math.floor(safe % 60).toString().padStart(2, "0");
+            return hh + ":" + mm + ":" + ss;
+        }
+
+        function applyNameInputsToUI(motor) {
+            const motorInput = document.getElementById("motor-name-input-" + motor.id);
+            const passwordInput = document.getElementById("motor-pass-input-" + motor.id);
+            if (motorInput) {
+                motorInput.value = motor.motorName;
+            }
+            if (passwordInput) {
+                passwordInput.value = "";
+            }
+        }
+
+        function toggleNameEditor(id) {
+            motors.forEach(function(motor) {
+                const el = document.getElementById("name-edit-grid-" + motor.id);
+                if (!el) {
+                    return;
+                }
+
+                if (motor.id === id) {
+                    const willOpen = !el.classList.contains("open");
+                    el.classList.toggle("open", willOpen);
+                    if (willOpen) {
+                        applyNameInputsToUI(motor);
+                    }
+                } else {
+                    el.classList.remove("open");
+                }
+            });
+        }
+
+        function saveMotorLabels(id) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const motorInput = document.getElementById("motor-name-input-" + id);
+            const passwordInput = document.getElementById("motor-pass-input-" + id);
+
+            const nextMotorName = motorInput ? motorInput.value.trim() : "";
+            const enteredPassword = passwordInput ? passwordInput.value : "";
+
+            if (enteredPassword !== NAME_EDIT_PASSWORD) {
+                updateMotorFeedback(id, "Wrong password", "#c0392b");
+                if (passwordInput) {
+                    passwordInput.value = "";
+                }
+                return;
+            }
+
+            motor.motorName = nextMotorName || ("Motor " + id);
+            motor.relayName = motor.motorName;
+
+            const saved = saveMotorNames(motor);
+            renderMotorCard(motor);
+            applyNameInputsToUI(motor);
+            populateScheduleMotorSelect();
+            updateMotorFeedback(id, saved ? "Name saved" : "Save failed", saved ? "#1f7d48" : "#c0392b");
+        }
+
+        function renderAllMotors() {
+            motors.forEach(function(motor) {
+                renderMotorCard(motor);
+            });
+        }
+
+        function updateMotorFeedback(id, text, color) {
+            const el = document.getElementById("motor-feedback-" + id);
+            if (!el) {
+                return;
+            }
+            el.textContent = text;
+            el.style.color = color || "#4e637d";
+        }
+
+        function setMotorState(id, state) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const nextState = !!state;
+            if (!motor.state && nextState) {
+                motor.runtimeStartMs = Date.now();
+            }
+            if (motor.state && !nextState && motor.runtimeStartMs !== null) {
+                motor.runtimeSeconds += Math.floor((Date.now() - motor.runtimeStartMs) / 1000);
+                motor.runtimeStartMs = null;
+            }
+
+            motor.state = nextState;
+            renderMotorCard(motor);
+        }
+
+        function setMotorMode(id, mode, modePin) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const normalized = String(mode || "AUTO").trim().toUpperCase();
+            motor.mode = normalized === "MANUAL" ? "MANUAL" : "AUTO";
+            if (typeof modePin !== "undefined" && modePin !== null) {
+                motor.modePin = readBooleanField(modePin);
+            }
+            renderMotorCard(motor);
+        }
+
+        function setMotorParams(id, voltage, current, power, voltageStatus, faultOk, voltageR, voltageY, voltageB, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+            if (typeof voltage !== "undefined" && voltage !== null) {
+                const parsedVoltage = Number(voltage);
+                if (Number.isFinite(parsedVoltage)) {
+                    motor.voltage = parsedVoltage;
+                    pushMotorHistory(motor, "voltage", motor.voltage);
+                }
+            }
+            if (typeof current !== "undefined" && current !== null) {
+                const parsedCurrent = Number(current);
+                if (Number.isFinite(parsedCurrent)) {
+                    motor.current = parsedCurrent;
+                    pushMotorHistory(motor, "current", motor.current);
+                }
+            }
+            if (typeof power !== "undefined" && power !== null) {
+                const parsedPower = Number(power);
+                if (Number.isFinite(parsedPower)) {
+                    motor.power = parsedPower;
+                    pushMotorHistory(motor, "power", motor.power);
+                }
+            }
+            if (typeof voltageR !== "undefined" && voltageR !== null) {
+                const parsedR = Number(voltageR);
+                if (Number.isFinite(parsedR)) {
+                    motor.voltageR = parsedR;
+                }
+            }
+            if (typeof voltageY !== "undefined" && voltageY !== null) {
+                const parsedY = Number(voltageY);
+                if (Number.isFinite(parsedY)) {
+                    motor.voltageY = parsedY;
+                }
+            }
+            if (typeof voltageB !== "undefined" && voltageB !== null) {
+                const parsedB = Number(voltageB);
+                if (Number.isFinite(parsedB)) {
+                    motor.voltageB = parsedB;
+                }
+            }
+            if (typeof voltageStatus !== "undefined" && voltageStatus !== null) {
+                motor.voltageStatus = String(voltageStatus);
+            }
+            if (typeof faultOk !== "undefined" && faultOk !== null) {
+                motor.faultOk = !!faultOk;
+            }
+            if (typeof manualTimerActive !== "undefined" && manualTimerActive !== null) {
+                motor.manualTimerActive = readBooleanField(manualTimerActive);
+            }
+            if (typeof manualTimerRemainingSec !== "undefined" && manualTimerRemainingSec !== null) {
+                const parsedRemaining = Number(manualTimerRemainingSec);
+                if (Number.isFinite(parsedRemaining) && parsedRemaining >= 0) {
+                    motor.manualTimerRemainingSec = parsedRemaining;
+                }
+            }
+            if (typeof manualTimerDurationSec !== "undefined" && manualTimerDurationSec !== null) {
+                const parsedDuration = Number(manualTimerDurationSec);
+                if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
+                    motor.manualTimerDurationSec = parsedDuration;
+                }
+            }
+            renderMotorCard(motor);
+        }
+
+        function getManualDurationMinutes(id) {
+            const select = document.getElementById("motor-manual-duration-" + id);
+            if (!select) {
+                return 0;
+            }
+
+            const value = Number(select.value);
+            if (!Number.isFinite(value)) {
+                return 0;
+            }
+            if (MANUAL_ON_DURATION_OPTIONS.indexOf(value) < 0) {
+                return 0;
+            }
+            return value;
+        }
+
+        function setDeviceState(id, online) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const previous = !!motor.deviceOnline;
+            const next = !!online;
+            motor.deviceOnline = next;
+
+            if (next) {
+                motor.lastSeenMs = Date.now();
+            }
+
+            if (previous !== next) {
+                addLog("controllar-" + motor.id3 + " motor " + id + " " + (next ? "connected" : "disconnected"));
+            }
+
+            renderMotorCard(motor);
+        }
+
+        function markDeviceSeen(id) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            motor.lastSeenMs = Date.now();
+            if (!motor.deviceOnline) {
+                setDeviceState(id, true);
+                return;
+            }
+
+            renderMotorCard(motor);
+        }
+
+        function evaluateDeviceTimeouts() {
+            const now = Date.now();
+            motors.forEach(function(motor) {
+                if (motor.deviceOnline && motor.lastSeenMs > 0 && (now - motor.lastSeenMs > DEVICE_OFFLINE_MS)) {
+                    setDeviceState(motor.id, false);
+                }
+            });
+        }
+
+        function sendMotorCommand(id, turnOn) {
+            if (!isConnected || !client) {
+                updateMotorFeedback(id, "Not connected", "#c0392b");
+                return;
+            }
+
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            if (motor.mode !== "MANUAL") {
+                updateMotorFeedback(id, "Switch to MANUAL for ON/OFF", "#c0392b");
+                return;
+            }
+
+            if (turnOn && motor.faultOk === false) {
+                updateMotorFeedback(id, "Warning: Voltage Fault, sending ON", "#ad7a00");
+            }
+
+            let command = turnOn ? "ON" : "OFF";
+            let feedbackText = "Sending " + command + "...";
+
+            if (turnOn) {
+                const durationMinutes = getManualDurationMinutes(id);
+                if (durationMinutes <= 0) {
+                    updateMotorFeedback(id, "Select manual ON time", "#c0392b");
+                    return;
+                }
+                command = JSON.stringify({
+                    manual_on: true,
+                    manual_on_duration_minutes: durationMinutes
+                });
+                feedbackText = "Sending MANUAL TIMER " + durationMinutes + "m...";
+            }
+
+            updateMotorFeedback(id, feedbackText, "#ad7a00");
+
+            client.publish(motor.controlTopic, command, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    addLog("Motor " + id + " command failed: " + err.message);
+                    updateMotorFeedback(id, "Send failed", "#c0392b");
+                    return;
+                }
+
+                if (turnOn) {
+                    setManualOffGuard(id, true);
+                    cancelQueuedOffJobsForTarget(id);
+                    addLog("Manual ON lock active for motor " + id + ". Scheduled OFF blocked until manual OFF.");
+                } else {
+                    setManualOffGuard(id, false);
+                    addLog("Manual ON lock cleared for motor " + id + ".");
+                }
+
+                trackTx(motor.controlTopic, command);
+                updateMotorFeedback(id, "Command sent, waiting for ESP32", "#1f7d48");
+                addLog("Motor " + id + " -> " + command + " on " + motor.controlTopic);
+            });
+        }
+
+        function sendModeCommand(id, manualMode) {
+            if (!isConnected || !client) {
+                updateMotorFeedback(id, "Not connected", "#c0392b");
+                return;
+            }
+
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const command = manualMode ? "MANUAL" : "AUTO";
+            updateMotorFeedback(id, "Setting mode " + command + "...", "#ad7a00");
+
+            client.publish(motor.controlTopic, command, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    updateMotorFeedback(id, "Mode set failed", "#c0392b");
+                    addLog("Motor " + id + " mode command failed: " + err.message);
+                    return;
+                }
+
+                if (!manualMode) {
+                    clearManualOffGuardOnAutoMode(id);
+                }
+
+                trackTx(motor.controlTopic, command);
+                setMotorMode(id, command);
+                updateMotorFeedback(id, "Mode " + command + " set", "#1f7d48");
+                addLog("Motor " + id + " mode -> " + command);
+            });
+        }
+
+        function sendAllMotorCommand(turnOn) {
+            if (!isConnected || !client) {
+                addLog("All command blocked: MQTT not connected");
+                return;
+            }
+
+            const command = turnOn ? "ON" : "OFF";
+            const topic = topicPrefix + "/motor/all/control";
+            client.publish(topic, command, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    addLog("All command failed: " + err.message);
+                    return;
+                }
+
+                if (turnOn) {
+                    setManualOffGuard(0, true);
+                    cancelQueuedOffJobsForTarget(0);
+                    addLog("Manual ON lock active for ALL motors. Scheduled OFF blocked until manual OFF.");
+                } else {
+                    setManualOffGuard(0, false);
+                    motors.forEach(function(motor) {
+                        setManualOffGuard(motor.id, false);
+                    });
+                    addLog("Manual ON lock cleared for ALL motors.");
+                }
+
+                trackTx(topic, command);
+                motors.forEach(function(motor) {
+                    updateMotorFeedback(motor.id, "All " + command + " sent, waiting for ESP32", "#1f7d48");
+                });
+                addLog("All motors -> " + command + " on " + topic);
+            });
+        }
+
+        function initMotorGrid() {
+            const grid = document.getElementById("motorGrid");
+            let html = "";
+
+            motors.forEach(function(motor) {
+                html += "<div class=\"motor-card\" id=\"motor-card-" + motor.id + "\">";
+                html += "<div class=\"motor-head\">";
+                html += "<div class=\"motor-name\" id=\"motor-name-text-" + motor.id + "\" onclick=\"toggleNameEditor(" + motor.id + ")\">" + motor.motorName + "</div>";
+                html += "<div class=\"motor-state\" id=\"motor-state-" + motor.id + "\">OFF</div>";
+                html += "</div>";
+                html += "<div class=\"motor-hw-mode\" id=\"motor-hw-mode-" + motor.id + "\">HW MODE: AUTO | D13: --</div>";
+                html += "<div class=\"motor-topic\">Control: " + motor.controlTopic + "</div>";
+                html += "<div class=\"motor-device-line\"><div class=\"device-state\" id=\"motor-device-state-" + motor.id + "\"><span class=\"device-dot\"></span><span>controllar-" + motor.id3 + " OFFLINE</span></div><div id=\"motor-device-last-" + motor.id + "\">Last seen: --</div></div>";
+                html += "<div class=\"motor-layout\">";
+                html += "<div class=\"motor-left-square\">";
+                html += "<div class=\"mini-title\">ON/OFF STATUS</div>";
+                html += "<div class=\"status-mini-row\"><div id=\"motor-relay-name-" + motor.id + "\">" + motor.relayName + "</div><div class=\"motor-status-chip\" id=\"motor-status-chip-" + motor.id + "\">STOPPED</div></div>";
+                html += "<div class=\"mini-title\" id=\"motor-runtime-" + motor.id + "\">RUNNING TIME: 00:00:00</div>";
+                html += "<div class=\"name-edit-grid\" id=\"name-edit-grid-" + motor.id + "\">";
+                html += "<input class=\"name-edit-input\" id=\"motor-name-input-" + motor.id + "\" type=\"text\" placeholder=\"Motor Name\">";
+                html += "<input class=\"name-edit-input\" id=\"motor-pass-input-" + motor.id + "\" type=\"password\" placeholder=\"Password\">";
+                html += "<button class=\"name-save-btn\" onclick=\"saveMotorLabels(" + motor.id + ")\">Save</button>";
+                html += "</div>";
+                html += "<div class=\"mini-title\">ON/OFF CONTROL</div>";
+                html += "<div class=\"motor-actions\">";
+                html += "<button class=\"motor-btn motor-btn-mode\" id=\"motor-btn-mode-" + motor.id + "\" onclick=\"sendModeCommand(" + motor.id + ", this.textContent !== 'MANUAL')\">AUTO</button>";
+                html += "<select class=\"manual-timer-select\" id=\"motor-manual-duration-" + motor.id + "\"><option value=\"10\">Manual ON 10m</option><option value=\"20\" selected>Manual ON 20m</option><option value=\"40\">Manual ON 40m</option><option value=\"60\">Manual ON 1h</option><option value=\"120\">Manual ON 2h</option><option value=\"180\">Manual ON 3h</option></select>";
+                html += "<button class=\"motor-btn motor-btn-on\" id=\"motor-btn-on-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", true)\">ON</button>";
+                html += "<button class=\"motor-btn motor-btn-off\" id=\"motor-btn-off-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", false)\">OFF</button>";
+                html += "<div class=\"manual-timer-label\" id=\"motor-manual-timer-label-" + motor.id + "\">TIMER INACTIVE</div>";
+                html += "</div>";
+                html += "</div>";
+                html += "<div class=\"motor-right-params\">";
+                html += "<div class=\"mini-title\">PARAMETER GRAPHICS</div>";
+                html += "<div class=\"motor-param-list\">";
+                html += "<div class=\"param-values-row\">";
+                html += "<div class=\"param-value-pill voltage\"><div class=\"param-label\">Voltage</div><div class=\"param-sep\">-</div><div class=\"param-value\" id=\"motor-voltage-" + motor.id + "\">--</div><div class=\"voltage-inline-chip\" id=\"motor-voltage-fault-" + motor.id + "\">--</div></div>";
+                html += "<div class=\"param-value-pill current\"><div class=\"param-label\">Current</div><div class=\"param-sep\">-</div><div class=\"param-value\" id=\"motor-current-" + motor.id + "\">--</div></div>";
+                html += "<div class=\"param-value-pill power\"><div class=\"param-label\">Power</div><div class=\"param-sep\">-</div><div class=\"param-value\" id=\"motor-power-" + motor.id + "\">--</div></div>";
+                html += "</div>";
+                html += "<canvas class=\"param-mini-chart\" id=\"motor-combined-chart-" + motor.id + "\"></canvas>";
+                html += "</div>";
+                html += "</div>";
+                html += "</div>";
+                html += "<div class=\"motor-feedback\" id=\"motor-feedback-" + motor.id + "\"></div>";
+                html += "</div>";
+            });
+
+            grid.innerHTML = html;
+            motors.forEach(function(motor) {
+                applyNameInputsToUI(motor);
+            });
+            renderAllMotors();
+            setConnectionStatus(false);
+        }
+
+        function updateStats(data) {
+            const v = getNumericField(data, ["voltage", "volt", "voltage_v", "v"]);
+            const vr = getNumericField(data, ["voltage_r", "vr", "r_voltage"]);
+            const vy = getNumericField(data, ["voltage_y", "vy", "y_voltage"]);
+            const vb = getNumericField(data, ["voltage_b", "vb", "b_voltage"]);
+            const c = getNumericField(data, ["current", "curr", "amp", "amps", "current_a", "a"]);
+            const p = getNumericField(data, ["power", "power_w", "watt", "watts", "w"]);
+
+            const voltageDisplay = (v !== null)
+                ? v
+                : ((vr !== null && vy !== null && vb !== null) ? ((vr + vy + vb) / 3.0) : null);
+
+            const voltageValue = document.getElementById("voltageValue");
+            const currentValue = document.getElementById("currentValue");
+            const powerValue = document.getElementById("powerValue");
+
+            if (voltageValue) {
+                voltageValue.textContent = voltageDisplay === null ? "--" : Number(voltageDisplay).toFixed(1) + "V";
+            }
+            if (currentValue) {
+                currentValue.textContent = c === null ? "--" : Number(c).toFixed(2) + "A";
+            }
+            if (powerValue) {
+                powerValue.textContent = p === null ? "--" : Number(p).toFixed(0) + "W";
+            }
+        }
+
+        function pushChartPoint(data) {
+            const v = getNumericField(data, ["voltage", "volt", "voltage_v", "v"]);
+            const vr = getNumericField(data, ["voltage_r", "vr", "r_voltage"]);
+            const vy = getNumericField(data, ["voltage_y", "vy", "y_voltage"]);
+            const vb = getNumericField(data, ["voltage_b", "vb", "b_voltage"]);
+            const c = getNumericField(data, ["current", "curr", "amp", "amps", "current_a", "a"]);
+            const p = getNumericField(data, ["power", "power_w", "watt", "watts", "w"]);
+
+            const voltagePlot = (v !== null)
+                ? v
+                : ((vr !== null && vy !== null && vb !== null) ? ((vr + vy + vb) / 3.0) : null);
+
+            chartData.labels.push(new Date().toLocaleTimeString());
+            chartData.voltage.push(voltagePlot);
+            chartData.current.push(c);
+            chartData.power.push(p);
+
+            if (chartData.labels.length > maxPoints) {
+                chartData.labels.shift();
+                chartData.voltage.shift();
+                chartData.current.shift();
+                chartData.power.shift();
+            }
+
+            voltageChart.update("none");
+            currentChart.update("none");
+            powerChart.update("none");
+        }
+
+        function handleAllData(rawPayload, topic) {
+            const payload = getPayloadObject(rawPayload);
+            if (!payload) {
+                return;
+            }
+
+            updateStats(payload);
+            pushChartPoint(payload);
+
+            const moduleId = resolveModuleId(payload, topic);
+            if (moduleId >= 1 && moduleId <= MOTOR_COUNT) {
+                markDeviceSeen(moduleId);
+                let v = getNumericField(payload, ["voltage", "volt", "voltage_v", "v"]);
+                const vr = getNumericField(payload, ["voltage_r", "vr", "r_voltage"]);
+                const vy = getNumericField(payload, ["voltage_y", "vy", "y_voltage"]);
+                const vb = getNumericField(payload, ["voltage_b", "vb", "b_voltage"]);
+                if (v === null && vr !== null && vy !== null && vb !== null) {
+                    v = (vr + vy + vb) / 3.0;
+                }
+                const c = getNumericField(payload, ["current", "curr", "amp", "amps", "current_a", "a"]);
+                const p = getNumericField(payload, ["power", "power_w", "watt", "watts", "w"]);
+                let voltageStatus = payload.voltage_status;
+                if (typeof voltageStatus === "undefined") {
+                    if (typeof payload.voltage_ok !== "undefined") {
+                        voltageStatus = readBooleanField(payload.voltage_ok) ? "Voltage OK" : "Faulty";
+                    } else if (typeof payload.fault !== "undefined") {
+                        voltageStatus = readBooleanField(payload.fault) ? "Faulty" : "Voltage OK";
+                    }
+                }
+
+                let faultOk = null;
+                if (typeof payload.voltage_ok !== "undefined") {
+                    faultOk = readBooleanField(payload.voltage_ok);
+                } else if (typeof payload.fault !== "undefined") {
+                    faultOk = !readBooleanField(payload.fault);
+                } else if (typeof payload.x1 !== "undefined") {
+                    const x1Value = Number(payload.x1);
+                    if (!Number.isNaN(x1Value)) {
+                        faultOk = x1Value < 1000;
+                    }
+                }
+
+                const manualTimerActive = typeof payload.manual_timer_active !== "undefined" ? payload.manual_timer_active : null;
+                const manualTimerRemainingSec = getNumericField(payload, ["manual_timer_remaining_sec"]);
+                const manualTimerDurationSec = getNumericField(payload, ["manual_timer_duration_sec"]);
+
+                setMotorParams(moduleId, v, c, p, voltageStatus, faultOk, vr, vy, vb, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec);
+
+                if (typeof payload.mode !== "undefined") {
+                    setMotorMode(moduleId, payload.mode, payload.mode_pin);
+                } else if (typeof payload.mode_auto !== "undefined") {
+                    setMotorMode(moduleId, readBooleanField(payload.mode_auto) ? "AUTO" : "MANUAL", payload.mode_pin);
+                }
+
+                if (typeof payload.mode !== "undefined" || typeof payload.mode_auto !== "undefined" || typeof payload.mode_pin !== "undefined") {
+                    setHardwareModeStatus(payload.mode, payload.mode_pin, "module " + moduleId);
+                }
+
+                if (Array.isArray(payload.schedule)) {
+                    updateScheduleFromPayload(payload.schedule);
+                }
+                if (payload.starter_sequence) {
+                    updateStarterSequenceFromPayload(payload.starter_sequence);
+                }
+
+                const resolvedState = resolveMotorStateFromPayload(payload);
+                if (resolvedState !== null) {
+                    setMotorState(moduleId, resolvedState);
+                }
+            }
+        }
+
+        function handleFeedbackTopic(topic, message) {
+            const parts = topic.split("/");
+            if (parts.length < 4) {
+                return;
+            }
+
+            const parsedMessage = parseMaybeJsonText(message);
+            if (parsedMessage) {
+                const payload = getPayloadObject(parsedMessage);
+                const id = resolveModuleId(payload, topic);
+
+                if (typeof payload.mode !== "undefined" || typeof payload.mode_auto !== "undefined" || typeof payload.mode_pin !== "undefined") {
+                    setHardwareModeStatus(payload.mode, payload.mode_pin, id ? "module " + id : "status");
+                }
+
+                if (Array.isArray(payload.schedule)) {
+                    updateScheduleFromPayload(payload.schedule);
+                }
+                if (payload.starter_sequence) {
+                    updateStarterSequenceFromPayload(payload.starter_sequence);
+                }
+
+                if (id >= 1 && id <= MOTOR_COUNT) {
+                    markDeviceSeen(id);
+                    if (typeof payload.mode !== "undefined") {
+                        setMotorMode(id, payload.mode, payload.mode_pin);
+                    } else if (typeof payload.mode_auto !== "undefined") {
+                        setMotorMode(id, readBooleanField(payload.mode_auto) ? "AUTO" : "MANUAL", payload.mode_pin);
+                    }
+
+                    const state = resolveMotorStateFromPayload(payload);
+                    if (state !== null) {
+                        setMotorState(id, state);
+                        updateMotorFeedback(id, state ? "Status ON" : "Status OFF", "#1f7d48");
+                    }
+                }
+                return;
+            }
+
+            if (parts[1] === "motor" && parts.length >= 4 && parts[3] === "status") {
+                const id = Number(parts[2]);
+                if (!id || id < 1 || id > MOTOR_COUNT) {
+                    return;
+                }
+                markDeviceSeen(id);
+                const normalized = String(message).trim().toUpperCase();
+                if (normalized === "ON" || normalized === "1" || normalized === "HIGH") {
+                    updateMotorFeedback(id, "Status ON", "#1f7d48");
+                }
+                if (normalized === "OFF" || normalized === "0" || normalized === "LOW") {
+                    updateMotorFeedback(id, "Status OFF", "#1f7d48");
+                }
+            }
+        }
+
+        function connectMqtt() {
+            client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", {
+                clientId: "relite_motor30_" + Date.now(),
+                keepalive: 60,
+                clean: true,
+                reconnectPeriod: 5000
+            });
+
+            client.on("connect", function() {
+                setConnectionStatus(true);
+                client.subscribe(topicPrefix + "/sensors/all");
+                client.subscribe(topicPrefix + "/motor/+/status");
+                client.subscribe(topicPrefix + "/motor/+/telemetry");
+                addLog("MQTT connected. Subscribed for 30 motor control/status.");
+            });
+
+            client.on("message", function(topic, payload) {
+                const msg = payload.toString();
+                trackRx(topic, msg);
+
+                if (topic === topicPrefix + "/sensors/all") {
+                    try {
+                        const data = JSON.parse(msg);
+                        handleAllData(data, topic);
+                    } catch (err) {
+                        addLog("JSON parse error on sensors/all: " + err.message);
+                    }
+                    return;
+                }
+
+                if (topic.startsWith(topicPrefix + "/motor/") && topic.endsWith("/telemetry")) {
+                    try {
+                        const data = JSON.parse(msg);
+                        handleAllData(data, topic);
+                    } catch (err) {
+                        addLog("JSON parse error on motor telemetry: " + err.message);
+                    }
+                    return;
+                }
+
+                handleFeedbackTopic(topic, msg);
+            });
+
+            client.on("close", function() {
+                setConnectionStatus(false);
+                motors.forEach(function(motor) {
+                    if (motor.deviceOnline) {
+                        setDeviceState(motor.id, false);
+                    }
+                });
+                addLog("MQTT disconnected");
+            });
+
+            client.on("error", function(err) {
+                addLog("MQTT error: " + err.message);
+            });
+        }
+
+        function buildCharts() {
+            const common = {
+                type: "line",
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: true, position: "top" } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            };
+
+            voltageChart = new Chart(document.getElementById("voltageChart").getContext("2d"), {
+                ...common,
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{ label: "Voltage", data: chartData.voltage, borderColor: "#1f78ff", tension: 0.35 }]
+                }
+            });
+
+            currentChart = new Chart(document.getElementById("currentChart").getContext("2d"), {
+                ...common,
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{ label: "Current", data: chartData.current, borderColor: "#20b970", tension: 0.35 }]
+                }
+            });
+
+            powerChart = new Chart(document.getElementById("powerChart").getContext("2d"), {
+                ...common,
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{ label: "Power", data: chartData.power, borderColor: "#f3a611", tension: 0.35 }]
+                }
+            });
+        }
+
+        function populateScheduleMotorSelect() {
+            const select = document.getElementById("scheduleTargetMotor");
+            if (!select) {
+                return;
+            }
+            const currentValue = select.value;
+            select.innerHTML = "";
+
+            const allOption = document.createElement("option");
+            allOption.value = "";
+            allOption.textContent = "All motors";
+            select.appendChild(allOption);
+
+            motors.forEach(function(motor) {
+                const option = document.createElement("option");
+                option.value = motor.id4;
+                option.textContent = motor.motorName + " (" + motor.id4 + ")";
+                select.appendChild(option);
+            });
+
+            if (currentValue && Array.from(select.options).some(function(opt) { return opt.value === currentValue; })) {
+                select.value = currentValue;
+            } else {
+                select.value = "";
+            }
+        }
+
+        window.onload = function() {
+            initMotorGrid();
+            renderScheduleEditor();
+            renderDashboardAlarmSettingsEditor();
+            renderStarterSequenceEditor();
+            buildCharts();
+            connectMqtt();
+            setInterval(function() {
+                renderAllMotors();
+            }, 1000);
+            setInterval(function() {
+                evaluateDeviceTimeouts();
+            }, 1000);
+            setInterval(function() {
+                checkAndTriggerDashboardAlarm();
+            }, 15000);
+            setInterval(function() {
+                processDashboardAlarmJobs();
+            }, 5000);
+            addLog("Motor Controller Device started.");
+        };
+    </script>
+</body>
+</html>
