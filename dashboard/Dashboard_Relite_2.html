@@ -88,6 +88,18 @@
             text-align: right;
         }
 
+        .online-device-list {
+            width: 100%;
+            margin-top: 8px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            border: 1px solid #d0dced;
+            background: #eff4fb;
+            color: #264a70;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         .hardware-mode-chip {
             display: inline-flex;
             align-items: center;
@@ -1226,6 +1238,7 @@
                 </div>
                 <div id="deviceSummary">Device Online: 0/30</div>
             </div>
+            <div class="online-device-list" id="onlineDeviceList">Online Controllers: none</div>
         </div>
 
         <div class="panel">
@@ -2807,6 +2820,18 @@
             }
             const onlineCount = motors.filter(function(m) { return m.deviceOnline; }).length;
             summary.textContent = "Device Online: " + onlineCount + "/" + MOTOR_COUNT;
+
+            const onlineDeviceList = document.getElementById("onlineDeviceList");
+            if (!onlineDeviceList) {
+                return;
+            }
+
+            const onlineControllers = motors
+                .filter(function(motor) { return motor.deviceOnline; })
+                .sort(function(a, b) { return a.id - b.id; })
+                .map(function(motor) { return motor.id3; });
+
+            onlineDeviceList.textContent = "Online Controllers: " + (onlineControllers.length > 0 ? onlineControllers.join(", ") : "none");
         }
 
         function formatRuntime(totalSeconds) {
@@ -2881,7 +2906,7 @@
             motors.forEach(function(motor) {
                 renderMotorCard(motor);
             });
-            reorderMotorGridByOnline();
+            reorderMotorGridByNumber();
         }
 
         function isMotorEditorActive() {
@@ -2897,22 +2922,13 @@
             return !!active.closest(".name-edit-grid");
         }
 
-        function reorderMotorGridByOnline() {
+        function reorderMotorGridByNumber() {
             const grid = document.getElementById("motorGrid");
             if (!grid) {
                 return;
             }
 
-             if (isMotorEditorActive()) {
-                return;
-            }
-
             const ordered = motors.slice().sort(function(a, b) {
-                const aOnline = a.deviceOnline ? 1 : 0;
-                const bOnline = b.deviceOnline ? 1 : 0;
-                if (aOnline !== bOnline) {
-                    return bOnline - aOnline;
-                }
                 return a.id - b.id;
             });
 
@@ -3586,7 +3602,7 @@
             }
 
             renderMotorCard(motor);
-            reorderMotorGridByOnline();
+            reorderMotorGridByNumber();
         }
 
         function markDeviceSeen(id) {
