@@ -1714,6 +1714,8 @@
             lastTriggerKeyMap: {},
             alarmJobs: {}
         };
+        const SCHEDULE_EDIT_FREEZE_MS = 15000;
+        let lastScheduleEditorInputMs = 0;
 
         function defaultDashboardAlarmSettings() {
             return {
@@ -1988,6 +1990,54 @@
             }
         }
 
+        function markScheduleEditorActivity() {
+            lastScheduleEditorInputMs = Date.now();
+        }
+
+        function isScheduleEditorBusy() {
+            if (Date.now() - lastScheduleEditorInputMs <= SCHEDULE_EDIT_FREEZE_MS) {
+                return true;
+            }
+
+            const active = document.activeElement;
+            if (!active) {
+                return false;
+            }
+
+            const activeId = String(active.id || "");
+            if (activeId.indexOf("schedule-") === 0 || activeId.indexOf("dashAlarm") === 0 || activeId === "scheduleTargetMotor") {
+                return true;
+            }
+
+            return !!(active.closest && (active.closest("#scheduleGrid") || active.closest(".alarm-retry-box") || active.closest(".schedule-target")));
+        }
+
+        function sameSchedule(a, b) {
+            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+                return false;
+            }
+            for (let i = 0; i < a.length; i++) {
+                const left = a[i] || {};
+                const right = b[i] || {};
+                if ((left.enabled === true) !== (right.enabled === true)) {
+                    return false;
+                }
+                if (Number(left.on_hour) !== Number(right.on_hour)) {
+                    return false;
+                }
+                if (Number(left.on_minute) !== Number(right.on_minute)) {
+                    return false;
+                }
+                if (Number(left.off_hour) !== Number(right.off_hour)) {
+                    return false;
+                }
+                if (Number(left.off_minute) !== Number(right.off_minute)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         function normalizeScheduleEntry(item, index) {
             const defaults = defaultScheduleConfig()[index];
             return {
@@ -2022,6 +2072,18 @@
                     "</div>" +
                     "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0")) : "Disabled") + "</div>";
                 scheduleGrid.appendChild(row);
+
+                const onElem = document.getElementById("schedule-on-time-" + index);
+                const offElem = document.getElementById("schedule-off-time-" + index);
+                const enabledElem = document.getElementById("schedule-enabled-" + index);
+                [onElem, offElem, enabledElem].forEach(function(elem) {
+                    if (!elem) {
+                        return;
+                    }
+                    elem.addEventListener("input", markScheduleEditorActivity);
+                    elem.addEventListener("change", markScheduleEditorActivity);
+                    elem.addEventListener("focus", markScheduleEditorActivity);
+                });
             });
         }
 
@@ -2275,6 +2337,10 @@
                 return;
             }
 
+            if (isScheduleEditorBusy()) {
+                return;
+            }
+
             const schedule = [];
             for (let index = 0; index < SCHEDULE_SLOTS; index++) {
                 const item = scheduleArray[index] || {};
@@ -2285,6 +2351,11 @@
                 const enabled = item.enabled === true;
                 schedule.push({ enabled: enabled, on_hour: onHour, on_minute: onMinute, off_hour: offHour, off_minute: offMinute });
             }
+            const existing = loadScheduleConfig();
+            if (sameSchedule(existing, schedule)) {
+                return;
+            }
+
             saveScheduleConfig(schedule);
             renderScheduleEditor();
             setScheduleMessage("Schedule updated from device status.");
@@ -4577,8 +4648,14 @@
                 closeAllManualDurationMenus();
             });
             setInterval(function() {
+                if (document.hidden) {
+                    return;
+                }
+                if (isScheduleEditorBusy()) {
+                    return;
+                }
                 renderAllMotors();
-            }, 1000);
+            }, 2000);
             setInterval(function() {
                 evaluateDeviceTimeouts();
             }, 1000);
