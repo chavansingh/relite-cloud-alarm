@@ -1289,11 +1289,7 @@
             </div>
             <div class="schedule-grid" id="scheduleGrid"></div>
             <div class="schedule-actions">
-                <button class="motor-btn motor-btn-mode" onclick="syncTimeToDevice()">Sync Device Time</button>
-                <button class="motor-btn motor-btn-mode" onclick="sendScheduleConfigToEsp()">Save Schedule to Device</button>
-                <button class="motor-btn motor-btn-on" onclick="saveScheduleConfig(readScheduleEditor())">Save Schedule Locally</button>
-                <button class="motor-btn motor-btn-mode" onclick="saveScheduleToCloud()">Save Alarm to Cloud</button>
-                <button class="motor-btn motor-btn-mode" onclick="loadScheduleFromCloud(false)">Load Alarm from Cloud</button>
+                <button class="motor-btn motor-btn-on" onclick="saveAlarmEverywhere()">Save Alarm Everywhere</button>
             </div>
             <div class="alarm-retry-box">
                 <div class="alarm-retry-row">
@@ -1317,8 +1313,8 @@
                     </div>
                 </div>
             </div>
-            <div class="schedule-message" id="scheduleMessage">Schedule can be saved locally, to cloud alarm service, or pushed to device.</div>
-            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Before schedule save, dashboard syncs current time to device (IST).</div>
+            <div class="schedule-message" id="scheduleMessage">Use Save Alarm Everywhere to save local, cloud, and device in one click.</div>
+            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. This dashboard keeps your edited values stable and avoids automatic enable/disable toggles.</div>
         </div>
 
         <div class="panel">
@@ -1715,6 +1711,7 @@
             alarmJobs: {}
         };
         const SCHEDULE_EDIT_FREEZE_MS = 15000;
+        const ALLOW_AUTO_SCHEDULE_IMPORT = false;
         let lastScheduleEditorInputMs = 0;
 
         function defaultDashboardAlarmSettings() {
@@ -2332,7 +2329,119 @@
             });
         }
 
+        function sendScheduleToDevicePromise(schedule) {
+            return new Promise(function(resolve, reject) {
+                if (!isConnected || !client) {
+                    reject(new Error("MQTT is not connected"));
+                    return;
+                }
+
+                const targetTopic = getScheduleTargetTopic();
+                publishDeviceTime(targetTopic, function(timeErr) {
+                    if (timeErr) {
+                        reject(new Error("time sync failed"));
+                        return;
+                    }
+
+                    const payload = {
+                        schedule: schedule.map(function(entry) {
+                            return {
+                                enabled: entry.enabled,
+                                on_hour: entry.on_hour,
+                                on_minute: entry.on_minute,
+                                off_hour: entry.off_hour,
+                                off_minute: entry.off_minute
+                            };
+                        })
+                    };
+
+                    const message = JSON.stringify(payload);
+                    client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
+                        if (err) {
+                            reject(new Error("device schedule publish failed"));
+                            return;
+                        }
+
+                        addLog("Schedule sent to " + targetTopic + ": " + message);
+                        resolve();
+                    });
+                });
+            });
+        }
+
+        function saveScheduleToCloudPromise(schedule) {
+            const baseUrl = getCloudAlarmApiBaseUrl();
+            const payload = {
+                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
+            };
+
+            return fetch(baseUrl + "/api/alarms", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            }).then(function(response) {
+                return response.json().then(function(result) {
+                    if (!response.ok || !result || result.ok !== true) {
+                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                        throw new Error(errorText);
+                    }
+                    return result;
+                });
+            });
+        }
+
+        async function saveAlarmEverywhere() {
+            markScheduleEditorActivity();
+            const schedule = readScheduleEditor();
+            saveScheduleConfig(schedule);
+
+            let cloudSaved = false;
+            let deviceSaved = false;
+            const errors = [];
+
+            try {
+                await saveScheduleToCloudPromise(schedule);
+                cloudSaved = true;
+            } catch (err) {
+                errors.push("Cloud: " + err.message);
+            }
+
+            try {
+                await sendScheduleToDevicePromise(schedule);
+                deviceSaved = true;
+            } catch (err) {
+                errors.push("Device: " + err.message);
+            }
+
+            if (cloudSaved && deviceSaved) {
+                setScheduleMessage("Alarm saved everywhere: local + cloud + device.");
+                addLog("Alarm saved everywhere.");
+                return;
+            }
+
+            if (cloudSaved && !deviceSaved) {
+                setScheduleMessage("Alarm saved local + cloud. Device pending (connect MQTT).");
+                addLog("Alarm saved local/cloud; device not updated.");
+                return;
+            }
+
+            if (!cloudSaved && deviceSaved) {
+                setScheduleMessage("Alarm saved local + device. Cloud save failed.");
+                addLog("Alarm saved local/device; cloud failed.");
+                return;
+            }
+
+            setScheduleMessage("Saved local only. " + (errors.length ? errors.join(" | ") : ""));
+            addLog("Alarm save partial failure: " + errors.join(" | "));
+        }
+
         function updateScheduleFromPayload(scheduleArray) {
+            if (!ALLOW_AUTO_SCHEDULE_IMPORT) {
+                return;
+            }
+
             if (!Array.isArray(scheduleArray)) {
                 return;
             }
@@ -4637,7 +4746,6 @@
             initMotorGrid();
             renderScheduleEditor();
             renderDashboardAlarmSettingsEditor();
-            loadScheduleFromCloud(true);
             buildCharts();
             connectMqtt();
             document.addEventListener("click", function(event) {
