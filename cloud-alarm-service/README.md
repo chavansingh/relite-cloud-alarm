@@ -115,9 +115,9 @@ Current deployment mode (separate and relite-only):
 
 Important for overnight run (laptop OFF):
 
-- Keep Render service always-on.
-- In this repo, `render.yaml` is set to `plan: starter` (no sleep).
-- If you use free tier, sleep/cold-start can delay alarms.
+- This repo is currently set to `plan: free` in `render.yaml` to avoid charges.
+- Free tier may sleep and cold-start, so exact alarm time can be delayed.
+- For strict on-time cloud alarms, use paid always-on plan.
 
 Optional Render env vars:
 

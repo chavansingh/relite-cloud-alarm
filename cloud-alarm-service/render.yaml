@@ -2,7 +2,7 @@ services:
   - type: web
     name: relite-cloud-alarm-service
     env: node
-    plan: starter
+    plan: free
     rootDir: cloud-alarm-service
     buildCommand: npm install
     startCommand: npm start
