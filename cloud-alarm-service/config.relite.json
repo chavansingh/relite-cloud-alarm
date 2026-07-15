@@ -14,16 +14,16 @@
       "enabled": true,
       "target": "all",
       "on": "06:00",
-      "off": "07:00"
+      "off": "10:00"
     },
     {
       "enabled": true,
       "target": "all",
-      "on": "12:00",
-      "off": "13:00"
+      "on": "16:00",
+      "off": "19:00"
     },
     {
-      "enabled": true,
+      "enabled": false,
       "target": "all",
       "on": "18:00",
       "off": "19:00"

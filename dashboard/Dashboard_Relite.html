@@ -581,6 +581,33 @@ q<!DOCTYPE html>
             text-align: center;
         }
 
+        .motor-alarm-box {
+            margin-top: 6px;
+            border: 1px solid #d3deed;
+            border-radius: 8px;
+            background: #f4f8fd;
+            padding: 6px;
+            font-size: 10px;
+            color: #2f4d69;
+        }
+
+        .motor-alarm-title {
+            font-weight: 700;
+            color: #244261;
+            margin-bottom: 4px;
+        }
+
+        .motor-alarm-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .motor-alarm-row:last-child {
+            margin-bottom: 0;
+        }
+
         .motor-feedback {
             margin-top: 8px;
             font-size: 12px;
@@ -738,7 +765,7 @@ q<!DOCTYPE html>
             <h2 class="panel-title">Motor Schedule (3 alarms)</h2>
             <div class="schedule-target">
                 <label for="scheduleTargetMotor">Target Motor</label>
-                <select id="scheduleTargetMotor"></select>
+                <select id="scheduleTargetMotor" onchange="renderAllMotors()"></select>
             </div>
             <div class="schedule-grid" id="scheduleGrid"></div>
             <div class="schedule-actions">
@@ -1187,9 +1214,9 @@ q<!DOCTYPE html>
 
         function defaultScheduleConfig() {
             return [
-                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 7, off_minute: 0 },
-                { enabled: true, on_hour: 12, on_minute: 0, off_hour: 13, off_minute: 0 },
-                { enabled: true, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
+                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 10, off_minute: 0 },
+                { enabled: true, on_hour: 16, on_minute: 0, off_hour: 19, off_minute: 0 },
+                { enabled: false, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
             ];
         }
 
@@ -1270,6 +1297,8 @@ q<!DOCTYPE html>
                     "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0")) : "Disabled") + "</div>";
                 scheduleGrid.appendChild(row);
             });
+
+            renderAllMotors();
         }
 
         function readScheduleEditor() {
@@ -1949,8 +1978,9 @@ q<!DOCTYPE html>
             const deviceLastSeen = document.getElementById("motor-device-last-" + motor.id);
             const manualDurationSelect = document.getElementById("motor-manual-duration-" + motor.id);
             const manualTimerLabel = document.getElementById("motor-manual-timer-label-" + motor.id);
+            const motorAlarmBox = document.getElementById("motor-alarm-box-" + motor.id);
 
-            if (!card || !badge || !motorNameText || !hwModeText || !relayNameText || !runtimeText || !statusChip || !buttonMode || !voltageValue || !voltageFaultChip || !currentValue || !powerValue || !deviceState || !deviceLastSeen || !manualDurationSelect || !manualTimerLabel) {
+            if (!card || !badge || !motorNameText || !hwModeText || !relayNameText || !runtimeText || !statusChip || !buttonMode || !voltageValue || !voltageFaultChip || !currentValue || !powerValue || !deviceState || !deviceLastSeen || !manualDurationSelect || !manualTimerLabel || !motorAlarmBox) {
                 return;
             }
 
@@ -1981,6 +2011,8 @@ q<!DOCTYPE html>
                 manualTimerLabel.textContent = "TIMER INACTIVE";
                 manualTimerLabel.style.color = "#35506f";
             }
+
+            motorAlarmBox.innerHTML = buildMotorScheduleHtml(motor.id);
 
             buttonMode.textContent = motor.mode === "MANUAL" ? "MANUAL" : "AUTO";
             buttonMode.className = motor.mode === "MANUAL" ? "motor-btn motor-btn-mode manual" : "motor-btn motor-btn-mode";
@@ -2050,6 +2082,35 @@ q<!DOCTYPE html>
             const mm = Math.floor((safe % 3600) / 60).toString().padStart(2, "0");
             const ss = Math.floor(safe % 60).toString().padStart(2, "0");
             return hh + ":" + mm + ":" + ss;
+        }
+
+        function formatScheduleHHMM(hh, mm) {
+            return String(Math.max(0, Math.min(23, Number(hh) || 0))).padStart(2, "0") + ":" + String(Math.max(0, Math.min(59, Number(mm) || 0))).padStart(2, "0");
+        }
+
+        function buildMotorScheduleHtml(motorId) {
+            const targetMotorId = getScheduleTargetMotorId();
+            const schedule = loadScheduleConfig();
+
+            if (targetMotorId > 0 && targetMotorId !== motorId) {
+                return "<div class=\"motor-alarm-title\">ALARM SCHEDULE</div>" +
+                    "<div class=\"motor-alarm-row\"><span>Target</span><span>Motor " + targetMotorId + " only</span></div>" +
+                    "<div class=\"motor-alarm-row\"><span>Status</span><span>Not targeted</span></div>";
+            }
+
+            const scopeText = targetMotorId > 0 ? ("MOTOR " + targetMotorId) : "ALL MOTORS";
+            let html = "<div class=\"motor-alarm-title\">ALARM SCHEDULE (" + scopeText + ")</div>";
+
+            for (let i = 0; i < SCHEDULE_SLOTS; i++) {
+                const fallback = defaultScheduleConfig()[i];
+                const entry = schedule[i] || fallback;
+                const enabledText = entry.enabled ? "ON" : "OFF";
+                const onText = formatScheduleHHMM(entry.on_hour, entry.on_minute);
+                const offText = formatScheduleHHMM(entry.off_hour, entry.off_minute);
+                html += "<div class=\"motor-alarm-row\"><span>A" + (i + 1) + " (" + enabledText + ")</span><span>" + onText + " -> " + offText + "</span></div>";
+            }
+
+            return html;
         }
 
         function applyNameInputsToUI(motor) {
@@ -2445,6 +2506,7 @@ q<!DOCTYPE html>
                 html += "<button class=\"motor-btn motor-btn-on\" id=\"motor-btn-on-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", true)\">ON</button>";
                 html += "<button class=\"motor-btn motor-btn-off\" id=\"motor-btn-off-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", false)\">OFF</button>";
                 html += "<div class=\"manual-timer-label\" id=\"motor-manual-timer-label-" + motor.id + "\">TIMER INACTIVE</div>";
+                html += "<div class=\"motor-alarm-box\" id=\"motor-alarm-box-" + motor.id + "\"></div>";
                 html += "</div>";
                 html += "</div>";
                 html += "<div class=\"motor-right-params\">";
