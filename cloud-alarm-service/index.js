@@ -3,25 +3,70 @@ const path = require("path");
 const express = require("express");
 const mqtt = require("mqtt");
 
-const CONFIG_PATH = path.join(__dirname, "config.json");
+const CONFIG_FILE = (process.env.CONFIG_FILE || "config.json").trim();
+const CONFIG_PATH = path.isAbsolute(CONFIG_FILE)
+  ? CONFIG_FILE
+  : path.join(__dirname, CONFIG_FILE);
 const PORT = Number(process.env.PORT || 3000);
+
+function readEnvNumber(name) {
+  const raw = process.env[name];
+  if (typeof raw === "undefined") {
+    return null;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function readEnvText(name) {
+  const raw = process.env[name];
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const value = raw.trim();
+  return value.length > 0 ? value : null;
+}
 
 function readConfig() {
   const raw = fs.readFileSync(CONFIG_PATH, "utf8");
   const parsed = JSON.parse(raw);
 
+  const timezoneEnv = readEnvText("TIMEZONE");
+  const brokerUrlEnv = readEnvText("MQTT_BROKER_URL");
+  const topicPrefixEnv = readEnvText("TOPIC_PREFIX");
+  const defaultTargetEnv = readEnvText("DEFAULT_TARGET");
+  const deviceOfflineMsEnv = readEnvNumber("DEVICE_OFFLINE_MS");
+  const retryOnCountEnv = readEnvNumber("RETRY_ON_COUNT");
+  const retryOffCountEnv = readEnvNumber("RETRY_OFF_COUNT");
+  const retryGapMinutesEnv = readEnvNumber("RETRY_GAP_MINUTES");
+
+  let alarmsFromEnv = null;
+  const alarmsEnvRaw = readEnvText("ALARMS_JSON");
+  if (alarmsEnvRaw) {
+    try {
+      const parsedAlarms = JSON.parse(alarmsEnvRaw);
+      if (Array.isArray(parsedAlarms)) {
+        alarmsFromEnv = parsedAlarms;
+      }
+    } catch (err) {
+      // fallback to config.json alarms if env JSON is invalid
+    }
+  }
+
   return {
-    timezone: parsed.timezone || "Asia/Kolkata",
-    brokerUrl: parsed.brokerUrl || "mqtt://broker.hivemq.com:1883",
-    topicPrefix: parsed.topicPrefix || "relite",
-    defaultTarget: normalizeTarget(parsed.defaultTarget || "all"),
-    deviceOfflineMs: Number.isFinite(Number(parsed.deviceOfflineMs)) ? Number(parsed.deviceOfflineMs) : 35000,
+    timezone: timezoneEnv || parsed.timezone || "Asia/Kolkata",
+    brokerUrl: brokerUrlEnv || parsed.brokerUrl || "mqtt://broker.hivemq.com:1883",
+    topicPrefix: topicPrefixEnv || parsed.topicPrefix || "relite",
+    defaultTarget: normalizeTarget(defaultTargetEnv || parsed.defaultTarget || "all"),
+    deviceOfflineMs: Number.isFinite(deviceOfflineMsEnv)
+      ? deviceOfflineMsEnv
+      : (Number.isFinite(Number(parsed.deviceOfflineMs)) ? Number(parsed.deviceOfflineMs) : 35000),
     retry: {
-      onCount: clampNumber(parsed.retry && parsed.retry.onCount, 1, 20, 3),
-      offCount: clampNumber(parsed.retry && parsed.retry.offCount, 1, 20, 3),
-      gapMinutes: clampNumber(parsed.retry && parsed.retry.gapMinutes, 1, 60, 5)
+      onCount: clampNumber(retryOnCountEnv, 1, 20, clampNumber(parsed.retry && parsed.retry.onCount, 1, 20, 3)),
+      offCount: clampNumber(retryOffCountEnv, 1, 20, clampNumber(parsed.retry && parsed.retry.offCount, 1, 20, 3)),
+      gapMinutes: clampNumber(retryGapMinutesEnv, 1, 60, clampNumber(parsed.retry && parsed.retry.gapMinutes, 1, 60, 5))
     },
-    alarms: Array.isArray(parsed.alarms) ? parsed.alarms : []
+    alarms: Array.isArray(alarmsFromEnv) ? alarmsFromEnv : (Array.isArray(parsed.alarms) ? parsed.alarms : [])
   };
 }
 
@@ -354,6 +399,8 @@ app.get("/health", (_req, res) => {
     mqttConnected: state.mqttConnected,
     jobsQueued: state.jobs.size,
     timezone: config.timezone,
+    topicPrefix: config.topicPrefix,
+    configFile: CONFIG_FILE,
     now: new Date().toISOString()
   });
 });

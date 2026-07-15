@@ -16,11 +16,11 @@ Always-on scheduler for ESP32 motors via MQTT. This runs in cloud 24x7, so lapto
 
 ## Configure
 
-Edit `config.json`:
+Edit `config.json` (or set Render env vars):
 
 - `timezone`: `Asia/Kolkata`
 - `brokerUrl`: your MQTT broker
-- `topicPrefix`: `relite`
+- `topicPrefix`: `relite` or `relite2` (must match your firmware)
 - `defaultTarget`: `0025` or `all`
 - `retry.onCount`, `retry.offCount`, `retry.gapMinutes`
 - `alarms[]` with `target`, `on`, `off`, `enabled`
@@ -103,6 +103,31 @@ Body:
 6. Deploy
 
 Render sets `PORT` automatically.
+
+Current deployment mode (separate and relite-only):
+
+- Active now: `TOPIC_PREFIX=relite` for:
+  - `dashboard/Dashboard_Relite.html`
+  - `ESP32_Adhana_Motor_0001/ESP32_Adhana_Motor_0001.ino`
+- Paused for now: `relite2`
+
+`render.yaml` is currently configured for relite-only service.
+
+Important for overnight run (laptop OFF):
+
+- Keep Render service always-on.
+- In this repo, `render.yaml` is set to `plan: starter` (no sleep).
+- If you use free tier, sleep/cold-start can delay alarms.
+
+Optional Render env vars:
+
+- `TIMEZONE` (example: `Asia/Kolkata`)
+- `MQTT_BROKER_URL` (example: `mqtt://broker.hivemq.com:1883`)
+- `TOPIC_PREFIX` (`relite` or `relite2`)
+- `DEFAULT_TARGET` (`all` or `0025`)
+- `DEVICE_OFFLINE_MS` (example: `35000`)
+- `RETRY_ON_COUNT`, `RETRY_OFF_COUNT`, `RETRY_GAP_MINUTES`
+- `ALARMS_JSON` (JSON array string to override `config.json` alarms)
 
 ## Deploy on Railway
 
