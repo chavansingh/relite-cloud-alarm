@@ -1099,6 +1099,15 @@
             renderDashboardAlarmSettingsEditor();
         }
 
+        function persistDashboardAlarmSettingsFromEditor(silent) {
+            const settings = readDashboardAlarmSettingsEditor();
+            const ok = saveDashboardAlarmSettings(settings);
+            if (ok && !silent) {
+                addLog("Dashboard Alarm Sender updated: enabled=" + settings.enabled + ", ON retries=" + settings.onRetryCount + ", OFF retries=" + settings.offRetryCount + ", gap=" + settings.retryGapMinutes + "m");
+            }
+            return ok;
+        }
+
         function getScheduleTargetMotorId() {
             const select = document.getElementById("scheduleTargetMotor");
             if (!select || !select.value) {
@@ -2989,6 +2998,24 @@
             initMotorGrid();
             renderScheduleEditor();
             renderDashboardAlarmSettingsEditor();
+            const senderIds = [
+                "dashAlarmEnabled",
+                "dashAlarmOnRetryCount",
+                "dashAlarmOffRetryCount",
+                "dashAlarmRetryGap"
+            ];
+            senderIds.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (!el) {
+                    return;
+                }
+                el.addEventListener("change", function() {
+                    persistDashboardAlarmSettingsFromEditor(false);
+                });
+                el.addEventListener("input", function() {
+                    persistDashboardAlarmSettingsFromEditor(true);
+                });
+            });
             renderStarterSequenceEditor();
             loadScheduleFromCloud(true);
             buildCharts();
