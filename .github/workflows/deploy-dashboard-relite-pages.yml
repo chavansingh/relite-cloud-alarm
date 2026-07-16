@@ -1,0 +1,56 @@
+name: Deploy Relite Dashboard Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - dashboard/Dashboard_Relite.html
+      - dashboard/pump.png
+      - dashboard/pump3.png
+      - dashboard/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg
+      - .github/workflows/deploy-dashboard-relite-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static site
+        run: |
+          mkdir -p _site
+          cp dashboard/Dashboard_Relite.html _site/index.html
+          cp dashboard/pump.png _site/pump.png
+          cp dashboard/pump3.png _site/pump3.png
+          cp "dashboard/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg" "_site/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
