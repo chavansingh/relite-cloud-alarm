@@ -1,4 +1,4 @@
-q<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -86,6 +86,18 @@ q<!DOCTYPE html>
             align-items: flex-end;
             gap: 4px;
             text-align: right;
+        }
+
+        .online-device-list {
+            width: 100%;
+            margin-top: 8px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            border: 1px solid #d0dced;
+            background: #eff4fb;
+            color: #264a70;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .hardware-mode-chip {
@@ -581,6 +593,33 @@ q<!DOCTYPE html>
             text-align: center;
         }
 
+        .motor-alarm-box {
+            margin-top: 6px;
+            border: 1px solid #d3deed;
+            border-radius: 8px;
+            background: #f4f8fd;
+            padding: 6px;
+            font-size: 10px;
+            color: #2f4d69;
+        }
+
+        .motor-alarm-title {
+            font-weight: 700;
+            color: #244261;
+            margin-bottom: 4px;
+        }
+
+        .motor-alarm-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .motor-alarm-row:last-child {
+            margin-bottom: 0;
+        }
+
         .motor-feedback {
             margin-top: 8px;
             font-size: 12px;
@@ -723,6 +762,7 @@ q<!DOCTYPE html>
                 </div>
                 <div id="deviceSummary">Device Online: 0/30</div>
             </div>
+            <div class="online-device-list" id="onlineDeviceList">Online Controllers: none</div>
         </div>
 
         <div class="panel">
@@ -738,12 +778,11 @@ q<!DOCTYPE html>
             <h2 class="panel-title">Motor Schedule (3 alarms)</h2>
             <div class="schedule-target">
                 <label for="scheduleTargetMotor">Target Motor</label>
-                <select id="scheduleTargetMotor"></select>
+                <select id="scheduleTargetMotor" onchange="renderAllMotors()"></select>
             </div>
             <div class="schedule-grid" id="scheduleGrid"></div>
             <div class="schedule-actions">
-                <button class="motor-btn motor-btn-mode" onclick="sendScheduleConfigToEsp()">Save Schedule to Device</button>
-                <button class="motor-btn motor-btn-on" onclick="saveScheduleConfig(readScheduleEditor())">Save Schedule Locally</button>
+                <button class="motor-btn motor-btn-on" onclick="saveAlarmEverywhere()">Save Alarm Everywhere</button>
             </div>
             <div class="alarm-retry-box">
                 <div class="alarm-retry-row">
@@ -767,8 +806,8 @@ q<!DOCTYPE html>
                     </div>
                 </div>
             </div>
-            <div class="schedule-message" id="scheduleMessage">Schedule changes are saved locally and can be pushed to the device.</div>
-            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Optional Dashboard Alarm Sender repeats ON/OFF commands while this page stays open and MQTT is connected.</div>
+            <div class="schedule-message" id="scheduleMessage">Use Save Alarm Everywhere to save local, cloud, and device in one click.</div>
+            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Save Alarm Everywhere stores the same schedule in all places.</div>
         </div>
 
         <div class="panel">
@@ -834,7 +873,20 @@ q<!DOCTYPE html>
         let isConnected = false;
         const NAME_EDIT_PASSWORD = "1234";
         const DEVICE_OFFLINE_MS = 35000;
-        const MANUAL_ON_DURATION_OPTIONS = [10, 20, 40, 60, 120, 180];
+        const CLOUD_ALARM_API_BASE_URL_KEY = "relite_cloud_alarm_api_base_url";
+        const DEFAULT_CLOUD_ALARM_API_BASE_URL = "https://relite-cloud-alarm.onrender.com";
+
+        function getCloudAlarmApiBaseUrl() {
+            try {
+                const saved = localStorage.getItem(CLOUD_ALARM_API_BASE_URL_KEY);
+                if (typeof saved === "string" && saved.trim()) {
+                    return saved.trim().replace(/\/+$/, "");
+                }
+            } catch (err) {
+                // fallback below
+            }
+            return DEFAULT_CLOUD_ALARM_API_BASE_URL;
+        }
 
         function loadMotorNames(id) {
             const defaults = {
@@ -1043,6 +1095,15 @@ q<!DOCTYPE html>
             renderDashboardAlarmSettingsEditor();
         }
 
+        function persistDashboardAlarmSettingsFromEditor(silent) {
+            const settings = readDashboardAlarmSettingsEditor();
+            const ok = saveDashboardAlarmSettings(settings);
+            if (ok && !silent) {
+                addLog("Dashboard Alarm Sender updated: enabled=" + settings.enabled + ", ON retries=" + settings.onRetryCount + ", OFF retries=" + settings.offRetryCount + ", gap=" + settings.retryGapMinutes + "m");
+            }
+            return ok;
+        }
+
         function getScheduleTargetMotorId() {
             const select = document.getElementById("scheduleTargetMotor");
             if (!select || !select.value) {
@@ -1187,9 +1248,9 @@ q<!DOCTYPE html>
 
         function defaultScheduleConfig() {
             return [
-                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 7, off_minute: 0 },
-                { enabled: true, on_hour: 12, on_minute: 0, off_hour: 13, off_minute: 0 },
-                { enabled: true, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
+                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 10, off_minute: 0 },
+                { enabled: true, on_hour: 16, on_minute: 0, off_hour: 19, off_minute: 0 },
+                { enabled: false, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
             ];
         }
 
@@ -1270,6 +1331,8 @@ q<!DOCTYPE html>
                     "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0")) : "Disabled") + "</div>";
                 scheduleGrid.appendChild(row);
             });
+
+            renderAllMotors();
         }
 
         function readScheduleEditor() {
@@ -1314,6 +1377,212 @@ q<!DOCTYPE html>
             }
             const id4 = select.value;
             return id4 ? topicPrefix + "/motor/" + id4 + "/control" : topicPrefix + "/motor/all/control";
+        }
+
+        function buildCloudAlarmPayloadFromSchedule(schedule) {
+            const targetMotorId = getScheduleTargetMotorId();
+            const target = targetMotorId > 0 ? String(targetMotorId).padStart(4, "0") : "all";
+
+            return schedule.map(function(entry) {
+                const safe = normalizeScheduleEntry(entry, 0);
+                return {
+                    enabled: safe.enabled === true,
+                    target: target,
+                    on: String(safe.on_hour).padStart(2, "0") + ":" + String(safe.on_minute).padStart(2, "0"),
+                    off: String(safe.off_hour).padStart(2, "0") + ":" + String(safe.off_minute).padStart(2, "0")
+                };
+            });
+        }
+
+        function toScheduleEntryFromCloudAlarm(item, index) {
+            const fallback = defaultScheduleConfig()[index];
+            const alarm = item && typeof item === "object" ? item : {};
+            const onText = typeof alarm.on === "string" ? alarm.on : "";
+            const offText = typeof alarm.off === "string" ? alarm.off : "";
+
+            const onParts = onText.split(":");
+            const offParts = offText.split(":");
+            const onHour = Number(onParts[0]);
+            const onMinute = Number(onParts[1]);
+            const offHour = Number(offParts[0]);
+            const offMinute = Number(offParts[1]);
+
+            return {
+                enabled: alarm.enabled === true,
+                on_hour: Number.isFinite(onHour) ? Math.max(0, Math.min(23, onHour)) : fallback.on_hour,
+                on_minute: Number.isFinite(onMinute) ? Math.max(0, Math.min(59, onMinute)) : fallback.on_minute,
+                off_hour: Number.isFinite(offHour) ? Math.max(0, Math.min(23, offHour)) : fallback.off_hour,
+                off_minute: Number.isFinite(offMinute) ? Math.max(0, Math.min(59, offMinute)) : fallback.off_minute
+            };
+        }
+
+        async function saveScheduleToCloud() {
+            const schedule = readScheduleEditor();
+            saveScheduleConfig(schedule);
+
+            const baseUrl = getCloudAlarmApiBaseUrl();
+            const payload = {
+                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
+            };
+
+            try {
+                const response = await fetch(baseUrl + "/api/alarms", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result || result.ok !== true) {
+                    const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                    setScheduleMessage("Cloud save failed: " + errorText);
+                    return;
+                }
+
+                setScheduleMessage("Alarm saved to cloud service.");
+                addLog("Cloud alarm updated from dashboard.");
+                renderAllMotors();
+            } catch (err) {
+                setScheduleMessage("Cloud save failed: " + err.message);
+            }
+        }
+
+        async function loadScheduleFromCloud(silent) {
+            const baseUrl = getCloudAlarmApiBaseUrl();
+
+            try {
+                const response = await fetch(baseUrl + "/api/alarms", {
+                    method: "GET"
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result || result.ok !== true || !Array.isArray(result.alarms)) {
+                    if (!silent) {
+                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                        setScheduleMessage("Cloud load failed: " + errorText);
+                    }
+                    return;
+                }
+
+                const schedule = [];
+                for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                    schedule.push(toScheduleEntryFromCloudAlarm(result.alarms[index], index));
+                }
+
+                saveScheduleConfig(schedule);
+                renderScheduleEditor();
+                renderAllMotors();
+
+                if (!silent) {
+                    setScheduleMessage("Alarm loaded from cloud service.");
+                }
+            } catch (err) {
+                if (!silent) {
+                    setScheduleMessage("Cloud load failed: " + err.message);
+                }
+            }
+        }
+
+        function sendScheduleToDevicePromise(schedule) {
+            return new Promise(function(resolve, reject) {
+                if (!isConnected || !client) {
+                    reject(new Error("MQTT is not connected"));
+                    return;
+                }
+
+                const payload = {
+                    schedule: schedule.map(function(entry) {
+                        return {
+                            enabled: entry.enabled,
+                            on_hour: entry.on_hour,
+                            on_minute: entry.on_minute,
+                            off_hour: entry.off_hour,
+                            off_minute: entry.off_minute
+                        };
+                    })
+                };
+
+                const targetTopic = getScheduleTargetTopic();
+                const message = JSON.stringify(payload);
+                client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
+                    if (err) {
+                        reject(new Error("device schedule publish failed"));
+                        return;
+                    }
+
+                    addLog("Schedule sent to " + targetTopic + ": " + message);
+                    resolve();
+                });
+            });
+        }
+
+        function saveScheduleToCloudPromise(schedule) {
+            const baseUrl = getCloudAlarmApiBaseUrl();
+            const payload = {
+                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
+            };
+
+            return fetch(baseUrl + "/api/alarms", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            }).then(function(response) {
+                return response.json().then(function(result) {
+                    if (!response.ok || !result || result.ok !== true) {
+                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
+                        throw new Error(errorText);
+                    }
+                    return result;
+                });
+            });
+        }
+
+        async function saveAlarmEverywhere() {
+            const schedule = readScheduleEditor();
+            saveScheduleConfig(schedule);
+
+            let cloudSaved = false;
+            let deviceSaved = false;
+            const errors = [];
+
+            try {
+                await saveScheduleToCloudPromise(schedule);
+                cloudSaved = true;
+            } catch (err) {
+                errors.push("Cloud: " + err.message);
+            }
+
+            try {
+                await sendScheduleToDevicePromise(schedule);
+                deviceSaved = true;
+            } catch (err) {
+                errors.push("Device: " + err.message);
+            }
+
+            if (cloudSaved && deviceSaved) {
+                setScheduleMessage("Alarm saved everywhere: local + cloud + device.");
+                addLog("Alarm saved everywhere.");
+                return;
+            }
+
+            if (cloudSaved && !deviceSaved) {
+                setScheduleMessage("Alarm saved local + cloud. Device pending (connect MQTT).");
+                addLog("Alarm saved local/cloud; device not updated.");
+                return;
+            }
+
+            if (!cloudSaved && deviceSaved) {
+                setScheduleMessage("Alarm saved local + device. Cloud save failed.");
+                addLog("Alarm saved local/device; cloud failed.");
+                return;
+            }
+
+            setScheduleMessage("Saved local only. " + (errors.length ? errors.join(" | ") : ""));
+            addLog("Alarm save partial failure: " + errors.join(" | "));
         }
 
         function sendScheduleConfigToEsp() {
@@ -1947,10 +2216,9 @@ q<!DOCTYPE html>
             const powerValue = document.getElementById("motor-power-" + motor.id);
             const deviceState = document.getElementById("motor-device-state-" + motor.id);
             const deviceLastSeen = document.getElementById("motor-device-last-" + motor.id);
-            const manualDurationSelect = document.getElementById("motor-manual-duration-" + motor.id);
-            const manualTimerLabel = document.getElementById("motor-manual-timer-label-" + motor.id);
+            const motorAlarmBox = document.getElementById("motor-alarm-box-" + motor.id);
 
-            if (!card || !badge || !motorNameText || !hwModeText || !relayNameText || !runtimeText || !statusChip || !buttonMode || !voltageValue || !voltageFaultChip || !currentValue || !powerValue || !deviceState || !deviceLastSeen || !manualDurationSelect || !manualTimerLabel) {
+            if (!card || !badge || !motorNameText || !hwModeText || !relayNameText || !runtimeText || !statusChip || !buttonMode || !voltageValue || !voltageFaultChip || !currentValue || !powerValue || !deviceState || !deviceLastSeen || !motorAlarmBox) {
                 return;
             }
 
@@ -1968,19 +2236,7 @@ q<!DOCTYPE html>
             }
             statusChip.className = motor.state ? "motor-status-chip on" : "motor-status-chip";
 
-            const durationMin = Number(motor.manualTimerDurationSec) > 0 ? Math.round(Number(motor.manualTimerDurationSec) / 60) : 20;
-            if (document.activeElement !== manualDurationSelect && MANUAL_ON_DURATION_OPTIONS.indexOf(durationMin) >= 0) {
-                manualDurationSelect.value = String(durationMin);
-            }
-
-            if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
-                const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
-                manualTimerLabel.textContent = "TIMER ACTIVE: " + leftMin + "m left";
-                manualTimerLabel.style.color = "#1f7d48";
-            } else {
-                manualTimerLabel.textContent = "TIMER INACTIVE";
-                manualTimerLabel.style.color = "#35506f";
-            }
+            motorAlarmBox.innerHTML = buildMotorScheduleHtml(motor.id);
 
             buttonMode.textContent = motor.mode === "MANUAL" ? "MANUAL" : "AUTO";
             buttonMode.className = motor.mode === "MANUAL" ? "motor-btn motor-btn-mode manual" : "motor-btn motor-btn-mode";
@@ -2042,6 +2298,18 @@ q<!DOCTYPE html>
             }
             const onlineCount = motors.filter(function(m) { return m.deviceOnline; }).length;
             summary.textContent = "Device Online: " + onlineCount + "/" + MOTOR_COUNT;
+
+            const onlineDeviceList = document.getElementById("onlineDeviceList");
+            if (!onlineDeviceList) {
+                return;
+            }
+
+            const onlineControllers = motors
+                .filter(function(motor) { return motor.deviceOnline; })
+                .sort(function(a, b) { return a.id - b.id; })
+                .map(function(motor) { return motor.id3; });
+
+            onlineDeviceList.textContent = "Online Controllers: " + (onlineControllers.length > 0 ? onlineControllers.join(", ") : "none");
         }
 
         function formatRuntime(totalSeconds) {
@@ -2050,6 +2318,35 @@ q<!DOCTYPE html>
             const mm = Math.floor((safe % 3600) / 60).toString().padStart(2, "0");
             const ss = Math.floor(safe % 60).toString().padStart(2, "0");
             return hh + ":" + mm + ":" + ss;
+        }
+
+        function formatScheduleHHMM(hh, mm) {
+            return String(Math.max(0, Math.min(23, Number(hh) || 0))).padStart(2, "0") + ":" + String(Math.max(0, Math.min(59, Number(mm) || 0))).padStart(2, "0");
+        }
+
+        function buildMotorScheduleHtml(motorId) {
+            const targetMotorId = getScheduleTargetMotorId();
+            const schedule = loadScheduleConfig();
+
+            if (targetMotorId > 0 && targetMotorId !== motorId) {
+                return "<div class=\"motor-alarm-title\">ALARM SCHEDULE</div>" +
+                    "<div class=\"motor-alarm-row\"><span>Target</span><span>Motor " + targetMotorId + " only</span></div>" +
+                    "<div class=\"motor-alarm-row\"><span>Status</span><span>Not targeted</span></div>";
+            }
+
+            const scopeText = targetMotorId > 0 ? ("MOTOR " + targetMotorId) : "ALL MOTORS";
+            let html = "<div class=\"motor-alarm-title\">ALARM SCHEDULE (" + scopeText + ")</div>";
+
+            for (let i = 0; i < SCHEDULE_SLOTS; i++) {
+                const fallback = defaultScheduleConfig()[i];
+                const entry = schedule[i] || fallback;
+                const enabledText = entry.enabled ? "ON" : "OFF";
+                const onText = formatScheduleHHMM(entry.on_hour, entry.on_minute);
+                const offText = formatScheduleHHMM(entry.off_hour, entry.off_minute);
+                html += "<div class=\"motor-alarm-row\"><span>A" + (i + 1) + " (" + enabledText + ")</span><span>" + onText + " -> " + offText + "</span></div>";
+            }
+
+            return html;
         }
 
         function applyNameInputsToUI(motor) {
@@ -2228,22 +2525,6 @@ q<!DOCTYPE html>
             renderMotorCard(motor);
         }
 
-        function getManualDurationMinutes(id) {
-            const select = document.getElementById("motor-manual-duration-" + id);
-            if (!select) {
-                return 0;
-            }
-
-            const value = Number(select.value);
-            if (!Number.isFinite(value)) {
-                return 0;
-            }
-            if (MANUAL_ON_DURATION_OPTIONS.indexOf(value) < 0) {
-                return 0;
-            }
-            return value;
-        }
-
         function setDeviceState(id, online) {
             const motor = motors.find(function(m) { return m.id === id; });
             if (!motor) {
@@ -2309,21 +2590,8 @@ q<!DOCTYPE html>
                 updateMotorFeedback(id, "Warning: Voltage Fault, sending ON", "#ad7a00");
             }
 
-            let command = turnOn ? "ON" : "OFF";
-            let feedbackText = "Sending " + command + "...";
-
-            if (turnOn) {
-                const durationMinutes = getManualDurationMinutes(id);
-                if (durationMinutes <= 0) {
-                    updateMotorFeedback(id, "Select manual ON time", "#c0392b");
-                    return;
-                }
-                command = JSON.stringify({
-                    manual_on: true,
-                    manual_on_duration_minutes: durationMinutes
-                });
-                feedbackText = "Sending MANUAL TIMER " + durationMinutes + "m...";
-            }
+            const command = turnOn ? "ON" : "OFF";
+            const feedbackText = "Sending " + command + "...";
 
             updateMotorFeedback(id, feedbackText, "#ad7a00");
 
@@ -2441,10 +2709,9 @@ q<!DOCTYPE html>
                 html += "<div class=\"mini-title\">ON/OFF CONTROL</div>";
                 html += "<div class=\"motor-actions\">";
                 html += "<button class=\"motor-btn motor-btn-mode\" id=\"motor-btn-mode-" + motor.id + "\" onclick=\"sendModeCommand(" + motor.id + ", this.textContent !== 'MANUAL')\">AUTO</button>";
-                html += "<select class=\"manual-timer-select\" id=\"motor-manual-duration-" + motor.id + "\"><option value=\"10\">Manual ON 10m</option><option value=\"20\" selected>Manual ON 20m</option><option value=\"40\">Manual ON 40m</option><option value=\"60\">Manual ON 1h</option><option value=\"120\">Manual ON 2h</option><option value=\"180\">Manual ON 3h</option></select>";
                 html += "<button class=\"motor-btn motor-btn-on\" id=\"motor-btn-on-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", true)\">ON</button>";
                 html += "<button class=\"motor-btn motor-btn-off\" id=\"motor-btn-off-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", false)\">OFF</button>";
-                html += "<div class=\"manual-timer-label\" id=\"motor-manual-timer-label-" + motor.id + "\">TIMER INACTIVE</div>";
+                html += "<div class=\"motor-alarm-box\" id=\"motor-alarm-box-" + motor.id + "\"></div>";
                 html += "</div>";
                 html += "</div>";
                 html += "<div class=\"motor-right-params\">";
@@ -2780,7 +3047,26 @@ q<!DOCTYPE html>
             initMotorGrid();
             renderScheduleEditor();
             renderDashboardAlarmSettingsEditor();
+            const senderIds = [
+                "dashAlarmEnabled",
+                "dashAlarmOnRetryCount",
+                "dashAlarmOffRetryCount",
+                "dashAlarmRetryGap"
+            ];
+            senderIds.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (!el) {
+                    return;
+                }
+                el.addEventListener("change", function() {
+                    persistDashboardAlarmSettingsFromEditor(false);
+                });
+                el.addEventListener("input", function() {
+                    persistDashboardAlarmSettingsFromEditor(true);
+                });
+            });
             renderStarterSequenceEditor();
+            loadScheduleFromCloud(true);
             buildCharts();
             connectMqtt();
             setInterval(function() {
