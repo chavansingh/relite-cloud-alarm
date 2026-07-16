@@ -17,22 +17,14 @@ jobs:
   trigger-render:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Render deploy hooks (relite + relite2)
+      - name: Call Render deploy hook (relite)
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-          RENDER_DEPLOY_HOOK_RELITE2: ${{ secrets.RENDER_DEPLOY_HOOK_RELITE2 }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK" ]; then
-            echo "Missing secret: RENDER_DEPLOY_HOOK"
-            exit 1
+            echo "Missing secret: RENDER_DEPLOY_HOOK (skip deploy hook)"
+            exit 0
           fi
 
           curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
           echo "Render deploy hook triggered: relite"
-
-          if [ -n "$RENDER_DEPLOY_HOOK_RELITE2" ]; then
-            curl -fsS -X POST "$RENDER_DEPLOY_HOOK_RELITE2"
-            echo "Render deploy hook triggered: relite2"
-          else
-            echo "RENDER_DEPLOY_HOOK_RELITE2 not set, relite2 hook skipped"
-          fi
