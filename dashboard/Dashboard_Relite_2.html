@@ -1294,7 +1294,7 @@
             </div>
             <div class="schedule-grid" id="scheduleGrid"></div>
             <div class="schedule-actions">
-                <button class="motor-btn motor-btn-on" onclick="saveAlarmEverywhere()">Save Alarm Everywhere</button>
+                <button class="motor-btn motor-btn-on" onclick="saveAlarmEverywhere()">Save Alarm (Local + Device)</button>
             </div>
             <div class="alarm-retry-box">
                 <div class="alarm-retry-row">
@@ -1318,7 +1318,7 @@
                     </div>
                 </div>
             </div>
-            <div class="schedule-message" id="scheduleMessage">Use Save Alarm Everywhere to save local, cloud, and device in one click.</div>
+            <div class="schedule-message" id="scheduleMessage">Save alarm locally and sync it to ESP device.</div>
             <div class="schedule-note">Set up to 3 daily ON/OFF alarms. This dashboard keeps your edited values stable and avoids automatic enable/disable toggles.</div>
         </div>
 
@@ -1376,24 +1376,8 @@
     const X1_PHASE_OK_THRESHOLD = 1700;
         const X3_POWER_SUPPLY_CUT_THRESHOLD = 1700;
         const MANUAL_ON_DURATION_OPTIONS = [10, 20, 40, 60, 120, 180];
-        const CLOUD_ALARM_API_BASE_URL_KEY = "relite2_cloud_alarm_api_base_url";
-        const DEFAULT_CLOUD_ALARM_API_BASE_URL = "https://relite-cloud-alarm.onrender.com";
-        const SHARED_CLOUD_ALARM_MODE = true;
-
-        function getCloudAlarmApiBaseUrl() {
-            if (SHARED_CLOUD_ALARM_MODE) {
-                return DEFAULT_CLOUD_ALARM_API_BASE_URL;
-            }
-            try {
-                const saved = localStorage.getItem(CLOUD_ALARM_API_BASE_URL_KEY);
-                if (typeof saved === "string" && saved.trim()) {
-                    return saved.trim().replace(/\/+$/, "");
-                }
-            } catch (err) {
-                // fallback below
-            }
-            return DEFAULT_CLOUD_ALARM_API_BASE_URL;
-        }
+        const AUTO_DEVICE_SCHEDULE_SYNC_GAP_MS = 60000;
+        let lastAutoDeviceScheduleSyncMs = 0;
 
         function loadMotorNames(id) {
             const defaults = {
@@ -2146,119 +2130,6 @@
             return id4 ? topicPrefix + "/motor/" + id4 + "/control" : topicPrefix + "/motor/all/control";
         }
 
-        function getCloudAlarmTargetId4() {
-            const select = document.getElementById("scheduleTargetMotor");
-            if (!select || !select.value) {
-                return "all";
-            }
-            const idNum = Number(select.value);
-            if (!Number.isFinite(idNum) || idNum < 1 || idNum > MOTOR_COUNT) {
-                return "all";
-            }
-            return String(idNum).padStart(4, "0");
-        }
-
-        function buildCloudAlarmPayloadFromSchedule(schedule) {
-            const target = getCloudAlarmTargetId4();
-            return schedule.map(function(entry, index) {
-                const safe = normalizeScheduleEntry(entry, index);
-                return {
-                    enabled: safe.enabled === true,
-                    target: target,
-                    on: String(safe.on_hour).padStart(2, "0") + ":" + String(safe.on_minute).padStart(2, "0"),
-                    off: String(safe.off_hour).padStart(2, "0") + ":" + String(safe.off_minute).padStart(2, "0")
-                };
-            });
-        }
-
-        function toScheduleEntryFromCloudAlarm(item, index) {
-            const fallback = defaultScheduleConfig()[index];
-            const alarm = item && typeof item === "object" ? item : {};
-            const onText = typeof alarm.on === "string" ? alarm.on : "";
-            const offText = typeof alarm.off === "string" ? alarm.off : "";
-
-            const onParts = onText.split(":");
-            const offParts = offText.split(":");
-            const onHour = Number(onParts[0]);
-            const onMinute = Number(onParts[1]);
-            const offHour = Number(offParts[0]);
-            const offMinute = Number(offParts[1]);
-
-            return {
-                enabled: alarm.enabled === true,
-                on_hour: Number.isFinite(onHour) ? Math.max(0, Math.min(23, onHour)) : fallback.on_hour,
-                on_minute: Number.isFinite(onMinute) ? Math.max(0, Math.min(59, onMinute)) : fallback.on_minute,
-                off_hour: Number.isFinite(offHour) ? Math.max(0, Math.min(23, offHour)) : fallback.off_hour,
-                off_minute: Number.isFinite(offMinute) ? Math.max(0, Math.min(59, offMinute)) : fallback.off_minute
-            };
-        }
-
-        async function saveScheduleToCloud() {
-            const schedule = readScheduleEditor();
-            saveScheduleConfig(schedule);
-
-            const baseUrl = getCloudAlarmApiBaseUrl();
-            const payload = {
-                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
-            };
-
-            try {
-                const response = await fetch(baseUrl + "/api/alarms", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                if (!response.ok || !result || result.ok !== true) {
-                    const errorText = result && result.error ? result.error : ("HTTP " + response.status);
-                    setScheduleMessage("Cloud save failed: " + errorText);
-                    return;
-                }
-
-                setScheduleMessage("Shared Relite alarm saved to cloud service.");
-                addLog("Shared cloud alarm updated from Relite-2 dashboard.");
-            } catch (err) {
-                setScheduleMessage("Cloud save failed: " + err.message);
-            }
-        }
-
-        async function loadScheduleFromCloud(silent) {
-            const baseUrl = getCloudAlarmApiBaseUrl();
-
-            try {
-                const response = await fetch(baseUrl + "/api/alarms", {
-                    method: "GET"
-                });
-
-                const result = await response.json();
-                if (!response.ok || !result || result.ok !== true || !Array.isArray(result.alarms)) {
-                    if (!silent) {
-                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
-                        setScheduleMessage("Cloud load failed: " + errorText);
-                    }
-                    return;
-                }
-
-                const schedule = [];
-                for (let index = 0; index < SCHEDULE_SLOTS; index++) {
-                    schedule.push(toScheduleEntryFromCloudAlarm(result.alarms[index], index));
-                }
-
-                saveScheduleConfig(schedule);
-                renderScheduleEditor();
-
-                if (!silent) {
-                    setScheduleMessage("Shared Relite alarm loaded from cloud service.");
-                }
-            } catch (err) {
-                if (!silent) {
-                    setScheduleMessage("Cloud load failed: " + err.message);
-                }
-            }
-        }
 
         function getDashboardIstTimeHHMM() {
             const formatted = new Date().toLocaleTimeString("en-GB", {
@@ -2387,25 +2258,52 @@
             });
         }
 
-        function saveScheduleToCloudPromise(schedule) {
-            const baseUrl = getCloudAlarmApiBaseUrl();
-            const payload = {
-                alarms: buildCloudAlarmPayloadFromSchedule(schedule)
-            };
+        function autoSyncScheduleToOnlineDevices(triggerLabel) {
+            if (!isConnected || !client) {
+                return;
+            }
 
-            return fetch(baseUrl + "/api/alarms", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
-            }).then(function(response) {
-                return response.json().then(function(result) {
-                    if (!response.ok || !result || result.ok !== true) {
-                        const errorText = result && result.error ? result.error : ("HTTP " + response.status);
-                        throw new Error(errorText);
+            if (!motors.some(function(motor) { return !!motor.deviceOnline; })) {
+                return;
+            }
+
+            const nowMs = Date.now();
+            if (nowMs - lastAutoDeviceScheduleSyncMs < AUTO_DEVICE_SCHEDULE_SYNC_GAP_MS) {
+                return;
+            }
+            lastAutoDeviceScheduleSyncMs = nowMs;
+
+            const schedule = loadScheduleConfig();
+            const targetTopic = topicPrefix + "/motor/all/control";
+
+            publishDeviceTime(targetTopic, function(timeErr) {
+                if (timeErr) {
+                    addLog("Auto schedule sync skipped (time sync failed): " + timeErr.message);
+                    return;
+                }
+
+                const payload = {
+                    schedule: schedule.map(function(entry) {
+                        return {
+                            enabled: entry.enabled,
+                            on_hour: entry.on_hour,
+                            on_minute: entry.on_minute,
+                            off_hour: entry.off_hour,
+                            off_minute: entry.off_minute
+                        };
+                    })
+                };
+
+                const message = JSON.stringify(payload);
+                client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
+                    if (err) {
+                        addLog("Auto schedule sync failed: " + err.message);
+                        return;
                     }
-                    return result;
+
+                    trackTx(targetTopic, message);
+                    addLog("Auto schedule synced to online devices" + (triggerLabel ? " (" + triggerLabel + ")" : "") + ".");
+                    setScheduleMessage("Device online detected: schedule auto-synced.");
                 });
             });
         }
@@ -2416,16 +2314,8 @@
             saveScheduleConfig(schedule);
             persistDashboardAlarmSettingsFromEditor(true);
 
-            let cloudSaved = false;
             let deviceSaved = false;
             const errors = [];
-
-            try {
-                await saveScheduleToCloudPromise(schedule);
-                cloudSaved = true;
-            } catch (err) {
-                errors.push("Cloud: " + err.message);
-            }
 
             try {
                 await sendScheduleToDevicePromise(schedule);
@@ -2434,21 +2324,9 @@
                 errors.push("Device: " + err.message);
             }
 
-            if (cloudSaved && deviceSaved) {
-                setScheduleMessage("Alarm saved everywhere: local + cloud + device.");
-                addLog("Alarm saved everywhere.");
-                return;
-            }
-
-            if (cloudSaved && !deviceSaved) {
-                setScheduleMessage("Alarm saved local + cloud. Device pending (connect MQTT).");
-                addLog("Alarm saved local/cloud; device not updated.");
-                return;
-            }
-
-            if (!cloudSaved && deviceSaved) {
-                setScheduleMessage("Alarm saved local + device. Cloud save failed.");
-                addLog("Alarm saved local/device; cloud failed.");
+            if (deviceSaved) {
+                setScheduleMessage("Alarm saved local + device.");
+                addLog("Alarm saved local/device.");
                 return;
             }
 
@@ -4098,6 +3976,9 @@
 
             if (previous !== next) {
                 addLog("controller-" + motor.id3 + " motor " + id + " " + (next ? "connected" : "disconnected"));
+                if (next) {
+                    autoSyncScheduleToOnlineDevices("controller-" + motor.id3 + " online");
+                }
             }
 
             renderMotorCard(motor);
@@ -4786,7 +4667,6 @@
             initMotorGrid();
             renderScheduleEditor();
             renderDashboardAlarmSettingsEditor();
-            loadScheduleFromCloud(true);
 
             const senderIds = [
                 "dashAlarmEnabled",
@@ -4834,14 +4714,8 @@
             setInterval(function() {
                 processDashboardAlarmJobs();
             }, 5000);
-            setInterval(function() {
-                if (isScheduleEditorBusy()) {
-                    return;
-                }
-                loadScheduleFromCloud(true);
-            }, 60000);
             addLog("Motor Controller Device - Relite 2 started.");
-            addLog("Shared alarm mode active: using relite cloud alarm schedule.");
+            addLog("Local alarm mode active: schedule saves locally and syncs to ESP.");
         };
     </script>
 </body>

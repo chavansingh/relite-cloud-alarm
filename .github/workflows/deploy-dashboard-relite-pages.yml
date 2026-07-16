@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - dashboard/Dashboard_Relite.html
+      - dashboard/Dashboard_Relite_2.html
       - dashboard/pump.png
       - dashboard/pump3.png
       - dashboard/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg
@@ -27,6 +28,7 @@ jobs:
           mkdir -p _site
           cp dashboard/Dashboard_Relite.html _site/index.html
           cp dashboard/Dashboard_Relite.html _site/Dashboard_Relite.html
+          cp dashboard/Dashboard_Relite_2.html _site/Dashboard_Relite_2.html
           cp dashboard/pump.png _site/pump.png
           cp dashboard/pump3.png _site/pump3.png
           cp "dashboard/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg" "_site/WhatsApp Image 2026-05-24 at 9.03.05 AM.jpeg"
