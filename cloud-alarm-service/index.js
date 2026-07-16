@@ -266,6 +266,28 @@ function topicForTarget(target) {
   return `${config.topicPrefix}/motor/${target}/control`;
 }
 
+function publishCloudAlarmEvent(target, command, sourceLabel, attemptNo, attemptTotal) {
+  if (!state.mqttConnected) {
+    return;
+  }
+
+  const eventTopic = `${config.topicPrefix}/cloud-alarm/event`;
+  const payload = {
+    source: sourceLabel,
+    target,
+    command,
+    attempt: attemptNo,
+    attemptTotal,
+    at: new Date().toISOString()
+  };
+
+  mqttClient.publish(eventTopic, JSON.stringify(payload), { qos: 1, retain: false }, (err) => {
+    if (err) {
+      log(`Cloud alarm event publish failed: ${err.message}`);
+    }
+  });
+}
+
 function enqueueAlarmJob(target, command, sourceLabel) {
   const retryCount = command === "OFF" ? config.retry.offCount : config.retry.onCount;
   const gapMs = config.retry.gapMinutes * 60 * 1000;
@@ -327,6 +349,7 @@ function processJobs() {
         return;
       }
       log(`Published ${job.command} to ${job.target} attempt ${attemptNo}/${job.retryCount}`);
+      publishCloudAlarmEvent(job.target, job.command, job.sourceLabel, attemptNo, job.retryCount);
     });
 
     job.attemptsSent += 1;
