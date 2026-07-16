@@ -1,0 +1,32 @@
+{
+  "timezone": "Asia/Kolkata",
+  "brokerUrl": "mqtt://broker.hivemq.com:1883",
+  "topicPrefix": "relite2",
+  "defaultTarget": "all",
+  "deviceOfflineMs": 35000,
+  "retry": {
+    "onCount": 3,
+    "offCount": 3,
+    "gapMinutes": 5
+  },
+  "alarms": [
+    {
+      "enabled": true,
+      "target": "all",
+      "on": "06:00",
+      "off": "10:00"
+    },
+    {
+      "enabled": true,
+      "target": "all",
+      "on": "16:00",
+      "off": "19:00"
+    },
+    {
+      "enabled": false,
+      "target": "all",
+      "on": "18:00",
+      "off": "19:00"
+    }
+  ]
+}

@@ -124,14 +124,16 @@ Body:
 
 Render sets `PORT` automatically.
 
-Current deployment mode (separate and relite-only):
+Current deployment mode (separate services, both active):
 
-- Active now: `TOPIC_PREFIX=relite` for:
+- Service 1 (`relite-cloud-alarm-service`): `TOPIC_PREFIX=relite` for:
   - `dashboard/Dashboard_Relite.html`
   - `ESP32_Adhana_Motor_0001/ESP32_Adhana_Motor_0001.ino`
-- Paused for now: `relite2`
+- Service 2 (`relite2-cloud-alarm-service`): `TOPIC_PREFIX=relite2` for:
+  - `dashboard/Dashboard_Relite_2.html`
+  - `ESP32_Adhana_Motor_000V1/ESP32_Adhana_Motor_000V1.ino`
 
-`render.yaml` is currently configured for relite-only service.
+`render.yaml` is configured for both relite and relite2 services.
 
 Important for overnight run (laptop OFF):
 
@@ -148,6 +150,11 @@ Optional Render env vars:
 - `DEVICE_OFFLINE_MS` (example: `35000`)
 - `RETRY_ON_COUNT`, `RETRY_OFF_COUNT`, `RETRY_GAP_MINUTES`
 - `ALARMS_JSON` (JSON array string to override `config.json` alarms)
+
+GitHub deploy-hook secrets:
+
+- `RENDER_DEPLOY_HOOK` for relite service
+- `RENDER_DEPLOY_HOOK_RELITE2` for relite2 service
 
 ## Deploy on Railway
 
