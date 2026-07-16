@@ -100,6 +100,35 @@
             font-weight: 700;
         }
 
+        .cloud-alarm-notice {
+            width: 100%;
+            margin-top: 8px;
+            padding: 9px 11px;
+            border-radius: 8px;
+            border: 1px solid #d0dced;
+            background: #eef4fb;
+            color: #264a70;
+            font-size: 12px;
+            font-weight: 700;
+            display: none;
+        }
+
+        .cloud-alarm-notice.show {
+            display: block;
+        }
+
+        .cloud-alarm-notice.on {
+            background: #e8f8ee;
+            border-color: #b9e7c9;
+            color: #1f7d48;
+        }
+
+        .cloud-alarm-notice.off {
+            background: #fdeeee;
+            border-color: #f2c2c2;
+            color: #a13a3a;
+        }
+
         .hardware-mode-chip {
             display: inline-flex;
             align-items: center;
@@ -763,6 +792,7 @@
                 <div id="deviceSummary">Device Online: 0/30</div>
             </div>
             <div class="online-device-list" id="onlineDeviceList">Online Controllers: none</div>
+            <div class="cloud-alarm-notice" id="cloudAlarmNotice">Cloud alarm notice will appear here.</div>
         </div>
 
         <div class="panel">
@@ -875,6 +905,8 @@
         const DEVICE_OFFLINE_MS = 35000;
         const CLOUD_ALARM_API_BASE_URL_KEY = "relite_cloud_alarm_api_base_url";
         const DEFAULT_CLOUD_ALARM_API_BASE_URL = "https://relite-cloud-alarm.onrender.com";
+        const CLOUD_ALARM_EVENT_TOPIC = topicPrefix + "/cloud-alarm/event";
+        let cloudAlarmNoticeHideTimer = null;
 
         function getCloudAlarmApiBaseUrl() {
             try {
@@ -2201,6 +2233,52 @@
             }
         }
 
+        function showCloudAlarmNotice(command, target, sourceLabel) {
+            const notice = document.getElementById("cloudAlarmNotice");
+            if (!notice) {
+                return;
+            }
+
+            const normalizedCommand = String(command || "").trim().toUpperCase();
+            if (normalizedCommand !== "ON" && normalizedCommand !== "OFF") {
+                return;
+            }
+
+            const shownTarget = (target && String(target).trim()) ? String(target).trim() : "all";
+            const shownSource = (sourceLabel && String(sourceLabel).trim()) ? String(sourceLabel).trim() : "cloud alarm";
+            const text = "CLOUD ALARM " + normalizedCommand + " -> " + shownTarget + " (" + shownSource + ")";
+
+            notice.textContent = text;
+            notice.classList.add("show");
+            notice.classList.remove("on", "off");
+            notice.classList.add(normalizedCommand === "ON" ? "on" : "off");
+
+            if (cloudAlarmNoticeHideTimer !== null) {
+                clearTimeout(cloudAlarmNoticeHideTimer);
+            }
+            cloudAlarmNoticeHideTimer = setTimeout(function() {
+                notice.classList.remove("show", "on", "off");
+            }, 9000);
+
+            addLog(text);
+        }
+
+        function handleCloudAlarmEventMessage(msg) {
+            let payload = null;
+            try {
+                payload = JSON.parse(msg);
+            } catch (err) {
+                addLog("Cloud alarm event parse error: " + err.message);
+                return;
+            }
+
+            if (!payload || typeof payload !== "object") {
+                return;
+            }
+
+            showCloudAlarmNotice(payload.command, payload.target, payload.source);
+        }
+
         function renderMotorCard(motor) {
             const card = document.getElementById("motor-card-" + motor.id);
             const badge = document.getElementById("motor-state-" + motor.id);
@@ -2934,6 +3012,7 @@
                 client.subscribe(topicPrefix + "/sensors/all");
                 client.subscribe(topicPrefix + "/motor/+/status");
                 client.subscribe(topicPrefix + "/motor/+/telemetry");
+                client.subscribe(CLOUD_ALARM_EVENT_TOPIC);
                 addLog("MQTT connected. Subscribed for 30 motor control/status.");
             });
 
@@ -2958,6 +3037,11 @@
                     } catch (err) {
                         addLog("JSON parse error on motor telemetry: " + err.message);
                     }
+                    return;
+                }
+
+                if (topic === CLOUD_ALARM_EVENT_TOPIC) {
+                    handleCloudAlarmEventMessage(msg);
                     return;
                 }
 
