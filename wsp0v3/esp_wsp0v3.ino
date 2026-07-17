@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <Preferences.h>
+#include <Preferences.h> 
 #include <time.h>
 #include <Wire.h>
 #include <RTClib.h>
@@ -20,8 +20,8 @@
 // ====================================
 
 // WiFi profile 1 (fixed in firmware)
-const char* WIFI_FIXED_SSID = "Airtel-Hotspot-40D7";
-const char* WIFI_FIXED_PASSWORD = "1qae7rbi";
+const char* WIFI_FIXED_SSID = "Airtel-Hotspot-21A0";
+const char* WIFI_FIXED_PASSWORD = "3ay7tn96";
 
 // MQTT
 const char* mqttBroker = "broker.hivemq.com";
@@ -29,7 +29,8 @@ const int mqttPort = 1883;
 const char* mqttClientPrefix = "esp_adhana_motor_updated_node";
 
 // Node identity: change per board (1..30)
-const int MODULE_ID = 12;
+const int MODULE_ID = 9;
+
 
 // Auto mode command: X2 raw ADC input below threshold enables AUTO.
 // The D13 pin is no longer used for auto/manual mode selection.
@@ -116,6 +117,7 @@ const unsigned long CD4052_TEST_PRINT_MS = 3000;
 const unsigned long AUTO_START_DELAY_MS = 30000;
 const unsigned long AUTO_RESTART_AFTER_CLEAR_MS = 20000;
 const unsigned long SCHEDULE_CHECK_INTERVAL_MS = 30000;
+const unsigned long ALARM_STATE_PERSIST_INTERVAL_MS = 60000;
 const unsigned long NTP_RESYNC_INTERVAL_MS = 3600000; // 1 hour
 const unsigned long NTP_RETRY_WHEN_UNSYNCED_MS = 30000;
 const unsigned long BLUETOOTH_TIME_BROADCAST_MS = 10000;
@@ -182,6 +184,12 @@ unsigned long autoRestartClearSinceMs = 0;
 String autoRestartFaultReason = "";
 bool alarmWindowActive = false;
 bool alarmWindowStartPending = false;
+bool alarmWindowManualOffUntilEnd = false;
+unsigned long alarmWindowCompensationMs = 0;
+unsigned long alarmCompensationLastTickMs = 0;
+unsigned long lastAlarmStatePersistMs = 0;
+uint32_t alarmWindowLastEpoch = 0;
+bool alarmWindowRecoveryPending = false;
 bool dryRunAutoRestartUsed = false;
 bool overloadAutoRestartUsed = false;
 bool dryRunAutoRestartLocked = false;
@@ -252,6 +260,7 @@ String pendingSwitchEventReason = "";
 
 const unsigned long MODE_DECISION_WINDOW_MS = 30000;
 const unsigned long MODE_SAMPLE_INTERVAL_MS = 1000;
+const uint8_t MODE_TOGGLE_CONFIRM_WINDOWS = 2;
 unsigned long lastModeSampleMs = 0;
 unsigned long modeWindowStartMs = 0;
 long modeDecisionSum = 0;
@@ -260,6 +269,11 @@ int modeDecisionRaw = 0;
 bool modeDecisionReady = false;
 bool modeDecisionHardwareAutoMode = true;
 bool x1DecisionVoltageOk = true;
+unsigned long modeDecisionVersion = 0;
+unsigned long lastHandledModeDecisionVersion = 0;
+bool pendingHardwareModeChangeActive = false;
+bool pendingHardwareModeCandidate = true;
+uint8_t pendingHardwareModeConfirmCount = 0;
 
 #if USE_BLUETOOTH_TIME_DISPLAY
 BluetoothSerial SerialBT;
@@ -956,6 +970,7 @@ void updateModeDecisionWindow() {
   modeDecisionHardwareAutoMode = modeDecisionRaw < MODE_X0_THRESHOLD;
   x1DecisionVoltageOk = modeDecisionRaw < X1_FAULT_THRESHOLD;
   modeDecisionReady = true;
+  modeDecisionVersion++;
 
   Serial.print("[MODE] 30s avg X0=");
   Serial.print(modeDecisionRaw);
@@ -1096,13 +1111,37 @@ void syncHardwareMode() {
     return;
   }
 
+  if (modeDecisionVersion == lastHandledModeDecisionVersion) {
+    return;
+  }
+  lastHandledModeDecisionVersion = modeDecisionVersion;
+
   const bool hardwareAutoMode = getHardwareModeFromModeDecision();
 
-  // If dashboard command set the mode, keep it until the hardware input is physically toggled.
-  if (modeCommandOverrideActive) {
-    // Detect a physical toggle on the hardware input compared to last observed hardware state.
-    if (hardwareAutoMode != lastHardwareAutoMode) {
-      // Hardware was toggled; clear dashboard override and adopt hardware mode.
+  if (hardwareAutoMode != lastHardwareAutoMode) {
+    if (!pendingHardwareModeChangeActive || pendingHardwareModeCandidate != hardwareAutoMode) {
+      pendingHardwareModeChangeActive = true;
+      pendingHardwareModeCandidate = hardwareAutoMode;
+      pendingHardwareModeConfirmCount = 1;
+      Serial.print("[MODE] Hardware mode change detected, waiting confirmation: ");
+      Serial.println(hardwareAutoMode ? "AUTO" : "MANUAL");
+      return;
+    }
+
+    pendingHardwareModeConfirmCount++;
+    if (pendingHardwareModeConfirmCount < MODE_TOGGLE_CONFIRM_WINDOWS) {
+      Serial.print("[MODE] Hardware mode confirmation ");
+      Serial.print(pendingHardwareModeConfirmCount);
+      Serial.print("/");
+      Serial.println(MODE_TOGGLE_CONFIRM_WINDOWS);
+      return;
+    }
+
+    pendingHardwareModeChangeActive = false;
+    pendingHardwareModeConfirmCount = 0;
+    lastHardwareAutoMode = hardwareAutoMode;
+
+    if (modeCommandOverrideActive) {
       modeCommandOverrideActive = false;
       if (hardwareAutoMode) {
         autoModeEnabled = true;
@@ -1111,16 +1150,22 @@ void syncHardwareMode() {
       } else {
         applyManualModeTransition("AUTO_OFF");
       }
-      Serial.println("[MODE] Hardware toggle detected - dashboard override cleared");
+      Serial.println("[MODE] Stable hardware toggle detected - dashboard override cleared");
       Serial.print("[MODE] Now using hardware input mode: ");
       Serial.println(autoModeEnabled ? "AUTO" : "MANUAL");
+      return;
     }
-    lastHardwareAutoMode = hardwareAutoMode;
+  } else {
+    pendingHardwareModeChangeActive = false;
+    pendingHardwareModeConfirmCount = 0;
+  }
+
+  // If dashboard command set the mode, keep it until the hardware input is physically toggled.
+  if (modeCommandOverrideActive) {
     return;
   }
 
   if (hardwareAutoMode == autoModeEnabled) {
-    lastHardwareAutoMode = hardwareAutoMode;
     return;
   }
 
@@ -1133,7 +1178,6 @@ void syncHardwareMode() {
   }
   Serial.print("[MODE] Hardware input set mode to ");
   Serial.println(autoModeEnabled ? "AUTO" : "MANUAL");
-  lastHardwareAutoMode = hardwareAutoMode;
 }
 
 void printCd4052AllValues() {
@@ -1710,6 +1754,62 @@ bool parseFaultConfigCommand(const JsonDocument& doc) {
   return true;
 }
 
+void saveAlarmWindowStateToPreferences() {
+  controlPreferences.begin("control", false);
+  controlPreferences.putBool("alarm_active", alarmWindowActive);
+  controlPreferences.putBool("alarm_pending", alarmWindowStartPending);
+  controlPreferences.putBool("alarm_off_latch", alarmWindowManualOffUntilEnd);
+  controlPreferences.putULong("alarm_comp_ms", alarmWindowCompensationMs);
+  controlPreferences.putULong("alarm_last_epoch", alarmWindowLastEpoch);
+  controlPreferences.end();
+}
+
+void loadAlarmWindowStateFromPreferences() {
+  controlPreferences.begin("control", true);
+  alarmWindowActive = controlPreferences.getBool("alarm_active", false);
+  alarmWindowStartPending = controlPreferences.getBool("alarm_pending", false);
+  alarmWindowManualOffUntilEnd = controlPreferences.getBool("alarm_off_latch", false);
+  alarmWindowCompensationMs = controlPreferences.getULong("alarm_comp_ms", 0);
+  alarmWindowLastEpoch = controlPreferences.getULong("alarm_last_epoch", 0);
+  controlPreferences.end();
+
+  if (!alarmWindowActive) {
+    alarmWindowStartPending = false;
+  }
+
+  alarmCompensationLastTickMs = millis();
+  alarmWindowRecoveryPending = alarmWindowActive;
+}
+
+bool isCurrentMinuteInScheduleWindow(const ScheduleEntry& entry, int nowMinutes) {
+  const int onMinutes = entry.onHour * 60 + entry.onMinute;
+  const int offMinutes = entry.offHour * 60 + entry.offMinute;
+
+  if (onMinutes == offMinutes) {
+    return false;
+  }
+
+  if (onMinutes < offMinutes) {
+    return nowMinutes >= onMinutes && nowMinutes < offMinutes;
+  }
+
+  // Window crosses midnight.
+  return nowMinutes >= onMinutes || nowMinutes < offMinutes;
+}
+
+bool isAnyScheduleWindowActiveNow(const struct tm& timeinfo) {
+  const int nowMinutes = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+  for (int i = 0; i < SCHEDULE_COUNT; i++) {
+    if (!scheduleEntries[i].enabled) {
+      continue;
+    }
+    if (isCurrentMinuteInScheduleWindow(scheduleEntries[i], nowMinutes)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void loadScheduleFromPreferences() {
   setDefaultSchedule();
   schedulePreferences.begin("schedule", true);
@@ -1765,41 +1865,92 @@ void applyScheduleLogic() {
     return;
   }
 
-  const int dayOfYear = timeinfo.tm_yday;
-  for (int i = 0; i < SCHEDULE_COUNT; i++) {
-    ScheduleEntry& entry = scheduleEntries[i];
-    if (!entry.enabled) {
-      continue;
-    }
+  const unsigned long nowMsTick = millis();
+  if (alarmCompensationLastTickMs == 0) {
+    alarmCompensationLastTickMs = nowMsTick;
+  }
+  const unsigned long elapsedMs = nowMsTick - alarmCompensationLastTickMs;
+  alarmCompensationLastTickMs = nowMsTick;
 
-    if (entry.onHour == timeinfo.tm_hour && entry.onMinute == timeinfo.tm_min && entry.lastTriggeredDayOfYearOn != dayOfYear) {
-      alarmWindowActive = true;
-      alarmWindowStartPending = !relayStateOn;
-      autoAlarmLatched = false;
-      autoRestartAfterFault = false;
-      autoRestartClearSinceMs = 0;
-      autoRestartFaultReason = "";
-      Serial.printf("[SCHEDULE] %02d:%02d -> ON\n", entry.onHour, entry.onMinute);
-      entry.lastTriggeredDayOfYearOn = dayOfYear;
-      pendingPublishStatus = true;
+  if (alarmWindowRecoveryPending) {
+    alarmWindowRecoveryPending = false;
+    const uint32_t nowEpoch = (uint32_t)time(nullptr);
+    if (alarmWindowLastEpoch > 0 && nowEpoch > alarmWindowLastEpoch) {
+      const uint32_t outageSec = nowEpoch - alarmWindowLastEpoch;
+      alarmWindowCompensationMs += ((unsigned long)outageSec * 1000UL);
+      Serial.print("[SCHEDULE] Added reboot compensation: ");
+      Serial.print((unsigned long)outageSec);
+      Serial.println("s");
+      saveAlarmWindowStateToPreferences();
     }
+  }
 
-    if (entry.offHour == timeinfo.tm_hour && entry.offMinute == timeinfo.tm_min && entry.lastTriggeredDayOfYearOff != dayOfYear) {
-      alarmWindowActive = false;
-      alarmWindowStartPending = false;
-      autoAlarmLatched = false;
-      autoRestartAfterFault = false;
-      autoRestartClearSinceMs = 0;
-      autoRestartFaultReason = "";
-      stopStarterWithReason("ALARM_OFF");
-      Serial.printf("[SCHEDULE] %02d:%02d -> OFF\n", entry.offHour, entry.offMinute);
-      entry.lastTriggeredDayOfYearOff = dayOfYear;
-      pendingPublishStatus = true;
+  const int x0Raw = readSensorChannelRaw(0, 16);
+  const bool powerSupplyCut = x0Raw >= X0_POWER_SUPPLY_CUT_THRESHOLD;
+
+  const bool scheduleActiveNow = isAnyScheduleWindowActiveNow(timeinfo);
+
+  if (!scheduleActiveNow && alarmWindowManualOffUntilEnd) {
+    alarmWindowManualOffUntilEnd = false;
+    saveAlarmWindowStateToPreferences();
+  }
+
+  if (scheduleActiveNow && !alarmWindowManualOffUntilEnd && powerSupplyCut) {
+    alarmWindowCompensationMs += elapsedMs;
+  }
+
+  if (!scheduleActiveNow && alarmWindowCompensationMs > 0 && !powerSupplyCut) {
+    if (elapsedMs >= alarmWindowCompensationMs) {
+      alarmWindowCompensationMs = 0;
+    } else {
+      alarmWindowCompensationMs -= elapsedMs;
     }
+  }
+
+  if (nowMsTick - lastAlarmStatePersistMs >= ALARM_STATE_PERSIST_INTERVAL_MS) {
+    lastAlarmStatePersistMs = nowMsTick;
+    const time_t nowEpoch = time(nullptr);
+    if (nowEpoch > 0) {
+      alarmWindowLastEpoch = (uint32_t)nowEpoch;
+    }
+    saveAlarmWindowStateToPreferences();
+  }
+
+  const bool shouldBeActive = !alarmWindowManualOffUntilEnd && (scheduleActiveNow || (alarmWindowCompensationMs > 0));
+
+  if (shouldBeActive && !alarmWindowActive) {
+    alarmWindowActive = true;
+    alarmWindowStartPending = !relayStateOn;
+    autoAlarmLatched = false;
+    autoRestartAfterFault = false;
+    autoRestartClearSinceMs = 0;
+    autoRestartFaultReason = "";
+    saveAlarmWindowStateToPreferences();
+    Serial.println("[SCHEDULE] Alarm window ACTIVE");
+    pendingPublishStatus = true;
+    return;
+  }
+
+  if (!shouldBeActive && alarmWindowActive) {
+    alarmWindowActive = false;
+    alarmWindowStartPending = false;
+    autoAlarmLatched = false;
+    autoRestartAfterFault = false;
+    autoRestartClearSinceMs = 0;
+    autoRestartFaultReason = "";
+    saveAlarmWindowStateToPreferences();
+    stopStarterWithReason("ALARM_OFF");
+    Serial.println("[SCHEDULE] Alarm window INACTIVE");
+    pendingPublishStatus = true;
   }
 }
 
 bool isAutoStartBlockedByProtection(String& reason) {
+  if (!voltageProtectionEnabled && !currentProtectionEnabled) {
+    reason = "";
+    return false;
+  }
+
   const float voltageR = readVoltageFromYChannel(VOLTAGE_R_Y_CHANNEL);
   const float voltageY = readVoltageFromYChannel(VOLTAGE_Y_Y_CHANNEL);
   const float voltageB = readVoltageFromYChannel(VOLTAGE_B_Y_CHANNEL);
@@ -1808,7 +1959,6 @@ bool isAutoStartBlockedByProtection(String& reason) {
   const float maxVoltageDeviation = max(max(fabsf(voltageR - voltageAvg), fabsf(voltageY - voltageAvg)), fabsf(voltageB - voltageAvg));
   const float unbalanceVoltagePercent = voltageAvg > 0.1f ? (maxVoltageDeviation / voltageAvg) * 100.0f : 0.0f;
   const bool unbalanceVoltageActive = unbalanceVoltagePercent > unbalanceVoltageThresholdPct;
-
   const bool phaseUnknown = (phaseSequenceEstimate == "UNKNOWN");
   const bool phaseMismatch = (!phaseUnknown) && (phaseSequenceEstimate != phaseSequenceSet);
 
@@ -1857,7 +2007,7 @@ void applyAutoModeLogic() {
     return;
   }
 
-  if (x1DecisionVoltageOk && !relayStateOn) {
+  if (!relayStateOn) {
     String blockReason = "";
     if (isAutoStartBlockedByProtection(blockReason)) {
       autoRestartClearSinceMs = 0;
@@ -1901,6 +2051,7 @@ void applyAutoModeLogic() {
 
     startStarterOnSequenceWithReason(startReason);
     alarmWindowStartPending = false;
+    saveAlarmWindowStateToPreferences();
     autoAlarmLatched = false;
     autoRestartAfterFault = false;
     autoRestartClearSinceMs = 0;
@@ -1908,14 +2059,6 @@ void applyAutoModeLogic() {
     pendingPublishStatus = true;
     Serial.println("[AUTO] Voltage OK after 30s average, starter ON");
     lastAutoStartBlockReason = "";
-  }
-
-  if (!x1DecisionVoltageOk && relayStateOn) {
-    autoAlarmLatched = true;
-    autoRestartClearSinceMs = 0;
-    stopStarterWithReason("ALARM_ON");
-    pendingPublishStatus = true;
-    Serial.println("[AUTO] Voltage FAULT after 30s average, starter forced OFF");
   }
 }
 
@@ -1957,8 +2100,6 @@ void applyProtectionFaultSafety() {
   const float voltageR = readVoltageFromYChannel(VOLTAGE_R_Y_CHANNEL);
   const float voltageY = readVoltageFromYChannel(VOLTAGE_Y_Y_CHANNEL);
   const float voltageB = readVoltageFromYChannel(VOLTAGE_B_Y_CHANNEL);
-  const int x1Raw = readSensorChannelRaw(1, 16);
-  const bool phaseOkByX1 = isPhaseOkFromX1Raw(x1Raw);
   const float voltageAvg = (voltageR + voltageY + voltageB) / 3.0f;
   const bool lowVoltageActive = voltageAvg < lowVoltageThresholdV;
   const float maxVoltageDeviation = max(max(fabsf(voltageR - voltageAvg), fabsf(voltageY - voltageAvg)), fabsf(voltageB - voltageAvg));
@@ -1971,11 +2112,13 @@ void applyProtectionFaultSafety() {
   }
   const bool dryRunActive = currentA < dryRunSetA;
   const bool overloadActive = currentA > overloadSetA;
-  const bool phaseFaultActive = !phaseOkByX1;
+  const bool phaseUnknown = (phaseSequenceEstimate == "UNKNOWN");
+  const bool phaseMismatch = (!phaseUnknown) && (phaseSequenceEstimate != phaseSequenceSet);
+  const bool phaseFaultActive = phaseUnknown || phaseMismatch;
   const bool inDryRunStartupIgnore = motorLastStartMs != 0 && (nowMs - motorLastStartMs < DRY_RUN_STARTUP_IGNORE_MS);
   const bool inOverloadStartupIgnore = motorLastStartMs != 0 && (nowMs - motorLastStartMs < OVERLOAD_STARTUP_IGNORE_MS);
 
-  const String faultReason = getProtectionFaultReason(lowVoltageActive, unbalanceVoltageActive, (currentProtectionEnabled && !ignoredFaultCurrent && !inDryRunStartupIgnore && dryRunActive), (currentProtectionEnabled && !ignoredFaultCurrent && !inOverloadStartupIgnore && overloadActive), (voltageProtectionEnabled && !ignoredFaultPhase && phaseFaultActive));
+  const String faultReason = getProtectionFaultReason(lowVoltageActive, unbalanceVoltageActive, (currentProtectionEnabled && !ignoredFaultCurrent && !inDryRunStartupIgnore && dryRunActive), (currentProtectionEnabled && !ignoredFaultCurrent && !inOverloadStartupIgnore && overloadActive), phaseFaultActive);
 
   if (faultReason.length() == 0) {
     pendingProtectionFaultReason = "";
@@ -2099,10 +2242,12 @@ void publishStatus(bool retained) {
   const int x0Raw = readSensorChannelRaw(0, 16);
   const int x1Raw = readSensorChannelRaw(1, 16);
   const int x3Raw = readSensorChannelRaw(3, 16);
-  const bool powerSupplyCut = x0Raw > X0_POWER_SUPPLY_CUT_THRESHOLD;
-  const bool phaseOkByX1 = isPhaseOkFromX1Raw(x1Raw);
-  const bool phaseFaultActive = !phaseOkByX1;
-  const String phaseMeasuredByX1 = phaseOkByX1 ? phaseSequenceSet : String("UNKNOWN");
+  const bool powerSupplyOn = x0Raw < X0_POWER_SUPPLY_CUT_THRESHOLD;
+  const bool powerSupplyCut = !powerSupplyOn;
+  const bool phaseUnknown = (phaseSequenceEstimate == "UNKNOWN");
+  const bool phaseMismatch = (!phaseUnknown) && (phaseSequenceEstimate != phaseSequenceSet);
+  const bool phaseFaultActive = phaseUnknown || phaseMismatch;
+  const String phaseMeasuredByX1 = phaseSequenceEstimate;
   const bool d27On = isRelayPinOn(RELAY_PIN_27);
   const float voltageR = readVoltageFromYChannel(VOLTAGE_R_Y_CHANNEL);
   const float voltageY = readVoltageFromYChannel(VOLTAGE_Y_Y_CHANNEL);
@@ -2160,7 +2305,7 @@ void publishStatus(bool retained) {
   doc["x1"] = x1Raw;
   doc["x3"] = x3Raw;
   doc["power_supply_cut"] = powerSupplyCut;
-  doc["power_supply_on"] = !powerSupplyCut;
+  doc["power_supply_on"] = powerSupplyOn;
   doc["x0_power_cut_threshold"] = X0_POWER_SUPPLY_CUT_THRESHOLD;
   doc["x3_power_cut_threshold"] = X0_POWER_SUPPLY_CUT_THRESHOLD;
   doc["mode"] = autoModeEnabled ? "AUTO" : "MANUAL";
@@ -2179,7 +2324,7 @@ void publishStatus(bool retained) {
   doc["phase_sequence_measured"] = phaseMeasuredByX1;
   doc["phase_sequence_set"] = phaseSequenceSet;
   doc["phase_sequence_source"] = "X1";
-  doc["phase_seq_stable"] = phaseOkByX1;
+  doc["phase_seq_stable"] = isPhaseSequenceStable();
   doc["voltage_r"] = voltageR;
   doc["voltage_y"] = voltageY;
   doc["voltage_b"] = voltageB;
@@ -2267,13 +2412,14 @@ void publishTelemetry() {
     return;
   }
 
-  const int x0Raw = readSensorChannelRaw(0, 16);
   const int x1Raw = readSensorChannelRaw(1, 16);
-  const bool phaseOkByX1 = isPhaseOkFromX1Raw(x1Raw);
+  const bool phaseOkByX1 = true;
   const bool d27On = isRelayPinOn(RELAY_PIN_27);
 
+  const int x0Raw = readSensorChannelRaw(0, 16);
   const int x3Raw = readSensorChannelRaw(3, 16);
-  const bool powerSupplyCut = x0Raw > X0_POWER_SUPPLY_CUT_THRESHOLD;
+  const bool powerSupplyOn = x0Raw < X0_POWER_SUPPLY_CUT_THRESHOLD;
+  const bool powerSupplyCut = !powerSupplyOn;
 
   const float voltageR = readVoltageFromYChannel(VOLTAGE_R_Y_CHANNEL);
   const float voltageY = readVoltageFromYChannel(VOLTAGE_Y_Y_CHANNEL);
@@ -2289,7 +2435,9 @@ void publishTelemetry() {
   const bool motorRunningByCurrent = isRunningFromCurrent(current);
   const bool dryRunActive = d27On && current < dryRunSetA;
   const bool overloadActive = d27On && current > overloadSetA;
-  const bool phaseFaultActive = !phaseOkByX1;
+  const bool phaseUnknown = (phaseSequenceEstimate == "UNKNOWN");
+  const bool phaseMismatch = (!phaseUnknown) && (phaseSequenceEstimate != phaseSequenceSet);
+  const bool phaseFaultActive = phaseUnknown || phaseMismatch;
   if (!motorRunningByCurrent && current < 0.25f) {
     current = 0.0f;
   }
@@ -2317,7 +2465,7 @@ void publishTelemetry() {
   doc["x1"] = x1Raw;
   doc["x3"] = x3Raw;
   doc["power_supply_cut"] = powerSupplyCut;
-  doc["power_supply_on"] = !powerSupplyCut;
+  doc["power_supply_on"] = powerSupplyOn;
   doc["x0_power_cut_threshold"] = X0_POWER_SUPPLY_CUT_THRESHOLD;
   doc["x3_power_cut_threshold"] = X0_POWER_SUPPLY_CUT_THRESHOLD;
   doc["motor_running_current"] = motorRunningByCurrent;
@@ -2353,7 +2501,7 @@ void publishTelemetry() {
   doc["rtc_valid"] = isRtcTimeValid();
   doc["time_unix"] = (long)nowEpoch;
   doc["phase_sequence"] = getDisplayPhaseSequence();
-  doc["phase_sequence_measured"] = phaseOkByX1 ? phaseSequenceSet : "UNKNOWN";
+  doc["phase_sequence_measured"] = phaseSequenceEstimate;
   doc["phase_sequence_set"] = phaseSequenceSet;
   doc["phase_sequence_source"] = "X1";
   doc["phase_seq_stable"] = phaseOkByX1;
@@ -2471,9 +2619,19 @@ void handleControlMessage(const String& msg) {
 
   if (parseOffCommand(msg)) {
     clearManualTimedOnState(true);
+    alarmWindowActive = false;
+    alarmWindowStartPending = false;
+    alarmWindowManualOffUntilEnd = true;
+    alarmWindowCompensationMs = 0;
+    alarmWindowRecoveryPending = false;
+    autoAlarmLatched = false;
+    autoRestartAfterFault = false;
+    autoRestartClearSinceMs = 0;
+    autoRestartFaultReason = "";
+    saveAlarmWindowStateToPreferences();
     stopStarterWithReason("MANUAL_OFF_CMD");
     pendingPublishStatus = true;
-    Serial.println("[CTRL] STARTER OFF: D12/D14/D27 OFF");
+    Serial.println("[CTRL] STARTER OFF: D12/D14/D27 OFF, alarm window paused until current schedule window ends");
     return;
   }
 
@@ -2680,8 +2838,9 @@ bool extractControlValueFromJson(const JsonVariantConst value, String& outComman
 bool parseControlCommandFromJson(const JsonDocument& doc) {
   String cmd = "";
   const char* directKeys[] = {
-    "command", "cmd", "control", "state", "switch", "relay", "motor", "motor_command", "mode"
+    "command", "cmd", "control", "state", "switch", "relay", "motor", "motor_command"
   };
+  const char* explicitModeKeys[] = {"mode_command", "set_mode", "mode_cmd"};
 
   for (size_t i = 0; i < (sizeof(directKeys) / sizeof(directKeys[0])); i++) {
     const char* key = directKeys[i];
@@ -2701,11 +2860,35 @@ bool parseControlCommandFromJson(const JsonDocument& doc) {
     return true;
   }
 
+  for (size_t i = 0; i < (sizeof(explicitModeKeys) / sizeof(explicitModeKeys[0])); i++) {
+    const char* key = explicitModeKeys[i];
+    if (!doc.containsKey(key)) {
+      continue;
+    }
+
+    if (extractControlValueFromJson(doc[key], cmd)) {
+      handleControlMessage(cmd);
+      return true;
+    }
+  }
+
   if (doc.containsKey("control") && doc["control"].is<JsonObjectConst>()) {
     JsonObjectConst control = doc["control"].as<JsonObjectConst>();
-    const char* nestedKeys[] = {"command", "cmd", "state", "mode"};
+    const char* nestedKeys[] = {"command", "cmd", "state"};
     for (size_t i = 0; i < (sizeof(nestedKeys) / sizeof(nestedKeys[0])); i++) {
       const char* key = nestedKeys[i];
+      if (!control.containsKey(key)) {
+        continue;
+      }
+
+      if (extractControlValueFromJson(control[key], cmd)) {
+        handleControlMessage(cmd);
+        return true;
+      }
+    }
+
+    for (size_t i = 0; i < (sizeof(explicitModeKeys) / sizeof(explicitModeKeys[0])); i++) {
+      const char* key = explicitModeKeys[i];
       if (!control.containsKey(key)) {
         continue;
       }
@@ -3149,6 +3332,7 @@ void setup() {
   loadScheduleFromPreferences();
   loadStarterSequenceFromPreferences();
   loadModeOverrideFromPreferences();
+  loadAlarmWindowStateFromPreferences();
   loadPhaseSequenceFromPreferences();
   loadSwitchHistoryFromPreferences();
   loadManualTimedOnFromPreferences();
