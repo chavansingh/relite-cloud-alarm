@@ -4006,9 +4006,67 @@
             powerChart.update("none");
         }
 
+        function normalizeNamespaceText(value) {
+            if (typeof value !== "string") {
+                return "";
+            }
+
+            return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+        }
+
+        function detectPayloadNamespace(payload) {
+            if (!payload || typeof payload !== "object") {
+                return "";
+            }
+
+            const fields = [
+                payload.namespace,
+                payload.topic_prefix,
+                payload.topicPrefix,
+                payload.prefix,
+                payload.system,
+                payload.product,
+                payload.project,
+                payload.source,
+                payload.device_type,
+                payload.deviceType,
+                payload.topic,
+                payload.source_topic,
+                payload.sourceTopic
+            ];
+
+            for (let i = 0; i < fields.length; i++) {
+                const normalized = normalizeNamespaceText(fields[i]);
+                if (!normalized) {
+                    continue;
+                }
+                if (normalized.indexOf("relite2") >= 0) {
+                    return "relite2";
+                }
+                if (normalized.indexOf("relite") >= 0) {
+                    return "relite";
+                }
+            }
+
+            return "";
+        }
+
+        function isPayloadForCurrentDashboard(topic, payload) {
+            if (typeof topic !== "string" || !topic.startsWith(topicPrefix + "/")) {
+                return false;
+            }
+
+            const namespace = detectPayloadNamespace(payload);
+            return namespace === "" || namespace === "relite2";
+        }
+
         function handleAllData(rawPayload, topic) {
             const payload = getPayloadObject(rawPayload);
             if (!payload) {
+                return;
+            }
+
+            if (!isPayloadForCurrentDashboard(topic, payload)) {
                 return;
             }
 
@@ -4142,6 +4200,9 @@
             const parsedMessage = parseMaybeJsonText(message);
             if (parsedMessage) {
                 const payload = getPayloadObject(parsedMessage);
+                if (!isPayloadForCurrentDashboard(topic, payload)) {
+                    return;
+                }
                 const id = resolveModuleId(payload, topic);
 
                 if (typeof payload.mode !== "undefined" || typeof payload.mode_auto !== "undefined" || typeof payload.mode_pin !== "undefined") {
