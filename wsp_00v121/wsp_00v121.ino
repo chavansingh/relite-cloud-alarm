@@ -2207,11 +2207,15 @@ void publishStatus(bool retained) {
   StaticJsonDocument<STATUS_JSON_CAPACITY> doc;
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : stateText;
+  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
+  const String alarmStateText = alarmStateActive ? String("ALARM_ON") : (autoAlarmLatched ? String("ALARM_OFF") : String(""));
   doc["status"] = stateText;
   doc["state"] = stateText;
   doc["status_text"] = statusText;
   doc["latest_reason"] = latestReason;
   doc["latest_state"] = latestState;
+  doc["alarm_active"] = alarmStateActive;
+  doc["alarm_state"] = alarmStateText;
   doc["relay_on"] = motorFeedbackOn;
   doc["motor"] = motorFeedbackOn;
   doc["io12_status"] = motorFeedbackOn;
@@ -2374,6 +2378,8 @@ void publishTelemetry() {
   updateSwitchHistoryFromState(d27On, nowEpoch);
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : (d27On ? "ON" : "OFF");
+  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
+  const String alarmStateText = alarmStateActive ? String("ALARM_ON") : (autoAlarmLatched ? String("ALARM_OFF") : String(""));
 
   // Keep telemetry compact to reduce publish failures on unstable links.
   StaticJsonDocument<TELEMETRY_JSON_CAPACITY> doc;
@@ -2381,6 +2387,8 @@ void publishTelemetry() {
   doc["module_id4"] = moduleId4;
   doc["latest_reason"] = latestReason;
   doc["latest_state"] = latestState;
+  doc["alarm_active"] = alarmStateActive;
+  doc["alarm_state"] = alarmStateText;
   doc["relay_on"] = d27On;
   doc["motor"] = d27On;
   doc["io12_status"] = d27On;
