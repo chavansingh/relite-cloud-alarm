@@ -1972,9 +1972,11 @@ void applyAutoModeLogic() {
       }
     }
 
-    const String startReason = autoRestartAfterFault
-      ? "AUTO_RESTART"
-      : (alarmWindowStartPending ? "ALARM_ON" : (autoAlarmLatched ? "ALARM_OFF" : "AUTO_ON"));
+    const String startReason = alarmStartRequested
+      ? "ALARM_ON"
+      : (autoRestartAfterFault
+        ? "AUTO_RESTART"
+        : (autoAlarmLatched ? "ALARM_OFF" : "AUTO_ON"));
 
     if (autoRestartAfterFault && isCurrentTripReason(autoRestartFaultReason)) {
       markTripRestartUsedForReason(autoRestartFaultReason);
