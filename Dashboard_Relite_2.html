@@ -88,18 +88,6 @@
             text-align: right;
         }
 
-        .online-device-list {
-            width: 100%;
-            margin-top: 8px;
-            padding: 7px 10px;
-            border-radius: 8px;
-            border: 1px solid #d0dced;
-            background: #eff4fb;
-            color: #264a70;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
         .hardware-mode-chip {
             display: inline-flex;
             align-items: center;
@@ -149,12 +137,16 @@
             border: 2px solid #d4dde8;
             background: linear-gradient(160deg, #f8fbff 0%, #edf3fb 100%);
             padding: 10px;
-            transition: none;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
         }
 
         .motor-card.on {
             border-color: #2ea35f;
             box-shadow: 0 0 0 2px rgba(46, 163, 95, 0.2), 0 8px 16px rgba(46, 163, 95, 0.2);
+        }
+
+        .motor-card:hover {
+            transform: translateY(-2px);
         }
 
         .motor-head {
@@ -570,6 +562,16 @@
             font-size: 13px;
         }
 
+        .schedule-row select[id^="schedule-duration-"] {
+            min-width: 140px;
+            width: 140px;
+            min-height: 46px;
+            padding: 11px 14px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
         .schedule-target-value {
             display: inline-flex;
             align-items: center;
@@ -600,37 +602,6 @@
             color: #39516f;
         }
 
-        .alarm-retry-box {
-            margin-top: 12px;
-            padding: 10px;
-            border: 1px solid #d5dfec;
-            border-radius: 10px;
-            background: #f3f7fc;
-        }
-
-        .alarm-retry-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
-            align-items: end;
-        }
-
-        .alarm-retry-row label {
-            font-size: 12px;
-            color: #31506b;
-            font-weight: 700;
-        }
-
-        .alarm-retry-row input {
-            width: 100%;
-            border-radius: 10px;
-            border: 1px solid #cbd4de;
-            padding: 10px 12px;
-            background: #ffffff;
-            color: #1c3b57;
-            font-size: 13px;
-        }
-
         .motor-btn {
             border: none;
             border-radius: 8px;
@@ -639,16 +610,7 @@
             font-weight: 700;
             color: #ffffff;
             cursor: pointer;
-            transition: none;
-        }
-
-        .panel,
-        .motor-card,
-        .chart-card,
-        .comm-card,
-        .stat {
-            transform: none !important;
-            animation: none !important;
+            transition: filter 0.15s;
         }
 
         .motor-btn-on {
@@ -1029,12 +991,7 @@
             filter: grayscale(0.45);
         }
 
-        .manual-duration-picker {
-            position: relative;
-            width: 100%;
-        }
-
-        .manual-duration-trigger {
+        .manual-timer-select {
             width: 100%;
             border: 1px solid #bdccde;
             border-radius: 6px;
@@ -1042,49 +999,19 @@
             font-size: 11px;
             color: #17395f;
             background: #ffffff;
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .manual-duration-menu {
-            display: none;
-            position: absolute;
-            z-index: 50;
-            left: 0;
-            right: 0;
-            top: calc(100% + 4px);
-            background: #ffffff;
-            border: 1px solid #bdccde;
-            border-radius: 6px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
-            overflow: hidden;
-        }
-
-        .manual-duration-menu.open {
-            display: block;
-        }
-
-        .manual-duration-option {
-            width: 100%;
-            border: none;
-            border-bottom: 1px solid #e7eef7;
-            background: #ffffff;
-            color: #17395f;
-            font-size: 11px;
-            padding: 7px 8px;
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .manual-duration-option:last-child {
-            border-bottom: none;
-        }
-
-        .manual-duration-option:hover {
-            background: #eef4fb;
         }
 
         .manual-timer-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #35506f;
+            background: #e8edf4;
+            border-radius: 7px;
+            padding: 4px 8px;
+            text-align: center;
+        }
+
+        .e-alarm-time-label {
             font-size: 11px;
             font-weight: 700;
             color: #35506f;
@@ -1274,7 +1201,6 @@
                 </div>
                 <div id="deviceSummary">Device Online: 0/30</div>
             </div>
-            <div class="online-device-list" id="onlineDeviceList">Online Controllers: none</div>
         </div>
 
         <div class="panel">
@@ -1294,32 +1220,12 @@
             </div>
             <div class="schedule-grid" id="scheduleGrid"></div>
             <div class="schedule-actions">
-                <button class="motor-btn motor-btn-on" onclick="saveAlarmEverywhere()">Save Alarm (Local + Device)</button>
+                <button class="motor-btn motor-btn-mode" onclick="syncTimeToDevice()">Sync Device Time</button>
+                <button class="motor-btn motor-btn-mode" onclick="sendScheduleConfigToEsp()">Save Schedule to Device</button>
+                <button class="motor-btn motor-btn-on" onclick="saveScheduleConfig(readScheduleEditor())">Save Schedule Locally</button>
             </div>
-            <div class="alarm-retry-box">
-                <div class="alarm-retry-row">
-                    <div>
-                        <label><input type="checkbox" id="dashAlarmEnabled"> Dashboard Alarm Sender ON</label>
-                    </div>
-                    <div>
-                        <label for="dashAlarmOnRetryCount">ON total tries</label>
-                        <input type="number" id="dashAlarmOnRetryCount" min="1" max="12" step="1" value="3">
-                    </div>
-                    <div>
-                        <label for="dashAlarmOffRetryCount">OFF total tries</label>
-                        <input type="number" id="dashAlarmOffRetryCount" min="1" max="12" step="1" value="1">
-                    </div>
-                    <div>
-                        <label for="dashAlarmRetryGap">Gap between tries (minutes)</label>
-                        <input type="number" id="dashAlarmRetryGap" min="1" max="60" step="1" value="10">
-                    </div>
-                    <div>
-                        <button class="motor-btn motor-btn-mode" onclick="saveDashboardAlarmSettingsFromEditor()">Save Alarm Sender</button>
-                    </div>
-                </div>
-            </div>
-            <div class="schedule-message" id="scheduleMessage">Save alarm locally and sync it to ESP device.</div>
-            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. This dashboard keeps your edited values stable and avoids automatic enable/disable toggles.</div>
+            <div class="schedule-message" id="scheduleMessage">Schedule changes are saved locally and can be pushed to the device.</div>
+            <div class="schedule-note">Set up to 3 daily ON/OFF alarms. Before schedule save, dashboard syncs current time to device (IST).</div>
         </div>
 
         <div class="panel">
@@ -1373,11 +1279,8 @@
         const DEVICE_OFFLINE_MS = 35000;
         const LOW_VOLTAGE_THRESHOLD = 150;
         const UNBALANCE_VOLTAGE_DEFAULT_PERCENT = 15;
-    const X1_PHASE_OK_THRESHOLD = 1700;
-        const X3_POWER_SUPPLY_CUT_THRESHOLD = 1700;
         const MANUAL_ON_DURATION_OPTIONS = [10, 20, 40, 60, 120, 180];
-        const AUTO_DEVICE_SCHEDULE_SYNC_GAP_MS = 60000;
-        let lastAutoDeviceScheduleSyncMs = 0;
+        const SCHEDULE_ON_DURATION_OPTIONS = [10, 20, 30, 40, 50, 60, 120, 180, 240];
 
         function loadMotorNames(id) {
             const defaults = {
@@ -1659,14 +1562,87 @@
             return upper === "ALARM_ON" || upper === "ALARM ON" || upper === "ALARM" || upper === "E_ALARM_ON" || upper === "D_ALARM_ON";
         }
 
+        function isDeviceAlarmOnReason(reason) {
+            const upper = String(reason || "").trim().toUpperCase();
+            return upper === "ALARM_ON" ||
+                upper === "ALARM ON" ||
+                upper === "ALARM" ||
+                upper === "E_ALARM" ||
+                upper === "E ALARM" ||
+                upper === "E_ALARM_ON" ||
+                upper === "E ALARM ON";
+        }
+
+        function isDeviceAlarmOffReason(reason) {
+            const upper = String(reason || "").trim().toUpperCase();
+            return upper === "E_ALARM_OFF" || upper === "E ALARM OFF";
+        }
+
+        function isDashboardAlarmOnReason(reason) {
+            const upper = String(reason || "").trim().toUpperCase();
+            return upper === "D_ALARM" ||
+                upper === "D ALARM" ||
+                upper === "D_ALARM_ON" ||
+                upper === "D_ALARM ON";
+        }
+
+        function isDashboardAlarmOffReason(reason) {
+            const upper = String(reason || "").trim().toUpperCase();
+            return upper === "D_ALARM_OFF" || upper === "D_ALARM OFF";
+        }
+
+        function isEAlarmDisplayReason(reason) {
+            const upper = String(reason || "").trim().toUpperCase();
+            return upper === "ALARM_ON" ||
+                upper === "ALARM ON" ||
+                upper === "E_ALARM" ||
+                upper === "E ALARM" ||
+                upper === "E_ALARM_ON" ||
+                upper === "E ALARM ON";
+        }
+
+        function findLatestEAlarmOnTimestamp(motor) {
+            if (!motor || !Array.isArray(motor.switchEvents)) {
+                return 0;
+            }
+
+            for (let i = 0; i < motor.switchEvents.length; i++) {
+                const item = motor.switchEvents[i] || {};
+                const stateUpper = String(item.state || "").trim().toUpperCase();
+                const reasonText = String(item.reason || item.source || "");
+                const ts = Number(item.timestamp || 0);
+                if (stateUpper === "ON" && isEAlarmDisplayReason(reasonText) && Number.isFinite(ts) && ts > 0) {
+                    return ts;
+                }
+            }
+
+            return 0;
+        }
+
         function setMotorAlarmState(targetMotorId, active) {
             motors.forEach(function(motor) {
                 if (targetMotorId > 0 && motor.id !== targetMotorId) {
                     return;
                 }
-                motor.localAlarmActive = !!active;
+                motor.localAlarmActive = !!active && !!motor.dashboardAlarmEnabled;
                 renderMotorCard(motor);
             });
+        }
+
+        function toggleDashboardAlarmEnabled(id) {
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            motor.dashboardAlarmEnabled = !motor.dashboardAlarmEnabled;
+            if (!motor.dashboardAlarmEnabled) {
+                motor.localAlarmActive = false;
+            }
+
+            saveMotorDashboardAlarmEnabled(motor);
+            renderMotorCard(motor);
+            updateMotorFeedback(id, "Dashboard alarm " + (motor.dashboardAlarmEnabled ? "ENABLED" : "DISABLED") + " (ESP alarm always enabled)", "#1f7d48");
         }
 
         function pushMotorSwitchEvent(motor, isOn, source) {
@@ -1716,261 +1692,106 @@
             }
         }
 
-        const SCHEDULE_SLOTS = 3;
-        const DASHBOARD_ALARM_SETTINGS_KEY = "relite2_dashboard_alarm_settings";
-        const dashboardAlarmState = {
-            lastTriggerKeyMap: {},
-            alarmJobs: {}
-        };
-        const SCHEDULE_EDIT_FREEZE_MS = 15000;
-        const ALLOW_AUTO_SCHEDULE_IMPORT = false;
-        let lastScheduleEditorInputMs = 0;
-
-        function defaultDashboardAlarmSettings() {
-            return {
-                enabled: true,
-                onRetryCount: 3,
-                offRetryCount: 1,
-                retryGapMinutes: 10
-            };
-        }
-
-        function loadDashboardAlarmSettings() {
+        function loadMotorDashboardAlarmEnabled(id) {
             try {
-                const raw = localStorage.getItem(DASHBOARD_ALARM_SETTINGS_KEY);
-                if (!raw) {
-                    return defaultDashboardAlarmSettings();
+                const raw = localStorage.getItem("relite2_motor_dashboard_alarm_enabled_" + id);
+                if (raw === null || typeof raw === "undefined") {
+                    return true;
                 }
-                const parsed = JSON.parse(raw);
-                if (!parsed || typeof parsed !== "object") {
-                    return defaultDashboardAlarmSettings();
-                }
-                return {
-                    enabled: parsed.enabled === true,
-                    onRetryCount: Number.isFinite(Number(parsed.onRetryCount)) ? Math.max(1, Math.min(12, Number(parsed.onRetryCount))) : 3,
-                    offRetryCount: Number.isFinite(Number(parsed.offRetryCount)) ? Math.max(1, Math.min(12, Number(parsed.offRetryCount))) : 1,
-                    retryGapMinutes: Number.isFinite(Number(parsed.retryGapMinutes)) ? Math.max(1, Math.min(60, Number(parsed.retryGapMinutes))) : 10
-                };
+                return raw === "1" || raw === "true";
             } catch (err) {
-                return defaultDashboardAlarmSettings();
-            }
-        }
-
-        function saveDashboardAlarmSettings(settings) {
-            try {
-                localStorage.setItem(DASHBOARD_ALARM_SETTINGS_KEY, JSON.stringify(settings));
-                setScheduleMessage("Dashboard Alarm Sender settings saved.");
                 return true;
+            }
+        }
+
+        function saveMotorDashboardAlarmEnabled(motor) {
+            try {
+                localStorage.setItem(
+                    "relite2_motor_dashboard_alarm_enabled_" + motor.id,
+                    motor.dashboardAlarmEnabled ? "1" : "0"
+                );
             } catch (err) {
-                setScheduleMessage("Failed to save Dashboard Alarm Sender settings.");
-                return false;
+                // ignore local storage failures
             }
         }
 
-        function renderDashboardAlarmSettingsEditor() {
-            const settings = loadDashboardAlarmSettings();
-            const enabledElem = document.getElementById("dashAlarmEnabled");
-            const onRetryCountElem = document.getElementById("dashAlarmOnRetryCount");
-            const offRetryCountElem = document.getElementById("dashAlarmOffRetryCount");
-            const retryGapElem = document.getElementById("dashAlarmRetryGap");
+        const SCHEDULE_SLOTS = 3;
 
-            if (enabledElem) {
-                enabledElem.checked = settings.enabled;
+        function clampScheduleDurationMinutes(value) {
+            const parsed = Number(value);
+            if (!Number.isFinite(parsed)) {
+                return 60;
             }
-            if (onRetryCountElem) {
-                onRetryCountElem.value = String(settings.onRetryCount);
-            }
-            if (offRetryCountElem) {
-                offRetryCountElem.value = String(settings.offRetryCount);
-            }
-            if (retryGapElem) {
-                retryGapElem.value = String(settings.retryGapMinutes);
-            }
+            const rounded = Math.round(parsed);
+            return SCHEDULE_ON_DURATION_OPTIONS.indexOf(rounded) >= 0 ? rounded : 60;
         }
 
-        function readDashboardAlarmSettingsEditor() {
-            const current = loadDashboardAlarmSettings();
-            const enabledElem = document.getElementById("dashAlarmEnabled");
-            const onRetryCountElem = document.getElementById("dashAlarmOnRetryCount");
-            const offRetryCountElem = document.getElementById("dashAlarmOffRetryCount");
-            const retryGapElem = document.getElementById("dashAlarmRetryGap");
-
-            const next = {
-                enabled: enabledElem ? enabledElem.checked : current.enabled,
-                onRetryCount: onRetryCountElem ? Number(onRetryCountElem.value) : current.onRetryCount,
-                offRetryCount: offRetryCountElem ? Number(offRetryCountElem.value) : current.offRetryCount,
-                retryGapMinutes: retryGapElem ? Number(retryGapElem.value) : current.retryGapMinutes
+        function buildScheduleEndFromDuration(onHour, onMinute, durationMin) {
+            const startMinutes = (Math.max(0, Math.min(23, Number(onHour))) * 60) + Math.max(0, Math.min(59, Number(onMinute)));
+            const endMinutes = (startMinutes + Math.max(1, Number(durationMin))) % (24 * 60);
+            return {
+                off_hour: Math.floor(endMinutes / 60),
+                off_minute: endMinutes % 60
             };
-
-            next.onRetryCount = Number.isFinite(next.onRetryCount) ? Math.max(1, Math.min(12, next.onRetryCount)) : current.onRetryCount;
-            next.offRetryCount = Number.isFinite(next.offRetryCount) ? Math.max(1, Math.min(12, next.offRetryCount)) : current.offRetryCount;
-            next.retryGapMinutes = Number.isFinite(next.retryGapMinutes) ? Math.max(1, Math.min(60, next.retryGapMinutes)) : current.retryGapMinutes;
-            return next;
         }
 
-        function saveDashboardAlarmSettingsFromEditor() {
-            const settings = readDashboardAlarmSettingsEditor();
-            const ok = saveDashboardAlarmSettings(settings);
-            if (ok) {
-                addLog("Dashboard Alarm Sender updated: enabled=" + settings.enabled + ", ON retries=" + settings.onRetryCount + ", OFF retries=" + settings.offRetryCount + ", gap=" + settings.retryGapMinutes + "m");
+        function deriveScheduleDurationMinutes(item, index) {
+            if (Number.isFinite(Number(item && item.duration_min))) {
+                return clampScheduleDurationMinutes(Number(item.duration_min));
             }
-            renderDashboardAlarmSettingsEditor();
+
+            const defaults = defaultScheduleConfig()[index];
+            const onHour = Number.isFinite(Number(item && item.on_hour)) ? Number(item.on_hour) : defaults.on_hour;
+            const onMinute = Number.isFinite(Number(item && item.on_minute)) ? Number(item.on_minute) : defaults.on_minute;
+            const offHour = Number.isFinite(Number(item && item.off_hour)) ? Number(item.off_hour) : defaults.off_hour;
+            const offMinute = Number.isFinite(Number(item && item.off_minute)) ? Number(item.off_minute) : defaults.off_minute;
+            const onTotal = Math.max(0, Math.min(23, onHour)) * 60 + Math.max(0, Math.min(59, onMinute));
+            const offTotal = Math.max(0, Math.min(23, offHour)) * 60 + Math.max(0, Math.min(59, offMinute));
+            const diff = (offTotal - onTotal + (24 * 60)) % (24 * 60);
+            return clampScheduleDurationMinutes(diff > 0 ? diff : 60);
         }
 
-        function persistDashboardAlarmSettingsFromEditor(silent) {
-            const settings = readDashboardAlarmSettingsEditor();
-            const ok = saveDashboardAlarmSettings(settings);
-            if (ok && !silent) {
-                addLog("Dashboard Alarm Sender updated: enabled=" + settings.enabled + ", ON retries=" + settings.onRetryCount + ", OFF retries=" + settings.offRetryCount + ", gap=" + settings.retryGapMinutes + "m");
+        function formatDurationLabel(minutes) {
+            const value = Number(minutes);
+            if (!Number.isFinite(value)) {
+                return "60m";
             }
-            return ok;
-        }
-
-        function getScheduleTargetMotorId() {
-            const select = document.getElementById("scheduleTargetMotor");
-            if (!select || !select.value) {
-                return 0;
-            }
-            const id = Number(select.value);
-            if (!Number.isFinite(id) || id < 1 || id > MOTOR_COUNT) {
-                return 0;
-            }
-            return id;
-        }
-
-        function isTargetOnlineByMotorId(targetMotorId) {
-            if (targetMotorId > 0) {
-                const motor = motors.find(function(m) { return m.id === targetMotorId; });
-                return !!(motor && motor.deviceOnline);
-            }
-            return motors.some(function(m) { return m.deviceOnline; });
-        }
-
-        function queueDashboardAlarmJob(command, sourceLabel) {
-            const settings = loadDashboardAlarmSettings();
-            const targetMotorId = getScheduleTargetMotorId();
-            const isAlarmOn = command === "D_ALARM_ON";
-            const retryCount = isAlarmOn ? settings.onRetryCount : settings.offRetryCount;
-            const gapMs = settings.retryGapMinutes * 60 * 1000;
-            const initialDelayMs = 60 * 1000;
-            const nowMs = Date.now();
-            const jobId = sourceLabel.replace(/\s+/g, "_") + "_" + command + "_" + nowMs;
-
-            dashboardAlarmState.alarmJobs[jobId] = {
-                id: jobId,
-                command: command,
-                sourceLabel: sourceLabel,
-                topic: getScheduleTargetTopic(),
-                targetMotorId: targetMotorId,
-                retryCount: retryCount,
-                gapMs: gapMs,
-                attemptsSent: 0,
-                nextAttemptAtMs: nowMs + initialDelayMs,
-                expiresAtMs: nowMs + (retryCount * gapMs)
-            };
-
-            addLog("Dashboard alarm queued: " + sourceLabel + " " + command + " | delay=60s | tries=" + retryCount + " | gap=" + settings.retryGapMinutes + "m");
-        }
-
-        function processDashboardAlarmJobs() {
-            const nowMs = Date.now();
-            const jobIds = Object.keys(dashboardAlarmState.alarmJobs);
-            if (jobIds.length === 0) {
-                return;
-            }
-
-            jobIds.forEach(function(jobId) {
-                const job = dashboardAlarmState.alarmJobs[jobId];
-                if (!job) {
-                    return;
-                }
-
-                if (job.attemptsSent >= job.retryCount || nowMs > job.expiresAtMs) {
-                    delete dashboardAlarmState.alarmJobs[jobId];
-                    return;
-                }
-
-                if (nowMs < job.nextAttemptAtMs) {
-                    return;
-                }
-
-                if (!isConnected || !client) {
-                    return;
-                }
-
-                if (!isTargetOnlineByMotorId(job.targetMotorId)) {
-                    return;
-                }
-
-                const nextAttemptNumber = job.attemptsSent + 1;
-                client.publish(job.topic, job.command, { qos: 1, retain: false }, function(err) {
-                    if (err) {
-                        addLog("Dashboard alarm " + job.command + " attempt " + nextAttemptNumber + " failed: " + err.message);
-                        return;
-                    }
-
-                    trackTx(job.topic, job.command);
-                    if (job.command === "D_ALARM_ON") {
-                        setMotorAlarmState(job.targetMotorId, true);
-                    } else if (job.command === "D_ALARM_OFF") {
-                        setMotorAlarmState(job.targetMotorId, false);
-                    }
-                    addLog("Dashboard alarm " + job.sourceLabel + " -> " + job.command + " attempt " + nextAttemptNumber + "/" + job.retryCount);
-                });
-
-                job.attemptsSent += 1;
-                job.nextAttemptAtMs = nowMs + job.gapMs;
-
-                if (job.attemptsSent >= job.retryCount) {
-                    delete dashboardAlarmState.alarmJobs[jobId];
-                }
-            });
-        }
-
-        function checkAndTriggerDashboardAlarm() {
-            const settings = loadDashboardAlarmSettings();
-            if (!settings.enabled) {
-                return;
-            }
-            if (!isConnected || !client) {
-                return;
-            }
-
-            const now = new Date();
-            const hh = now.getHours();
-            const mm = now.getMinutes();
-            const dayKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
-            const schedule = loadScheduleConfig();
-
-            schedule.forEach(function(entry, index) {
-                if (!entry || entry.enabled !== true) {
-                    return;
-                }
-
-                if (entry.on_hour === hh && entry.on_minute === mm) {
-                    const onKey = dayKey + "|" + index + "|ON|" + hh + ":" + mm;
-                    if (!dashboardAlarmState.lastTriggerKeyMap["ON_" + index] || dashboardAlarmState.lastTriggerKeyMap["ON_" + index] !== onKey) {
-                        dashboardAlarmState.lastTriggerKeyMap["ON_" + index] = onKey;
-                        queueDashboardAlarmJob("D_ALARM_ON", "alarm " + (index + 1) + " ON");
-                    }
-                }
-
-                if (entry.off_hour === hh && entry.off_minute === mm) {
-                    const offKey = dayKey + "|" + index + "|OFF|" + hh + ":" + mm;
-                    if (!dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] || dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] !== offKey) {
-                        dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] = offKey;
-                        queueDashboardAlarmJob("D_ALARM_OFF", "alarm " + (index + 1) + " OFF");
-                    }
-                }
-            });
+            return value >= 60 ? ((value / 60) + "har") : (value + "m");
         }
 
         function defaultScheduleConfig() {
             return [
-                { enabled: true, on_hour: 6, on_minute: 0, off_hour: 7, off_minute: 0 },
-                { enabled: true, on_hour: 12, on_minute: 0, off_hour: 13, off_minute: 0 },
-                { enabled: true, on_hour: 18, on_minute: 0, off_hour: 19, off_minute: 0 }
+                { enabled: true, on_hour: 6, on_minute: 0, duration_min: 180, off_hour: 9, off_minute: 0 },
+                { enabled: true, on_hour: 17, on_minute: 50, duration_min: 60, off_hour: 18, off_minute: 50 },
+                { enabled: true, on_hour: 16, on_minute: 40, duration_min: 60, off_hour: 17, off_minute: 40 }
             ];
+        }
+
+        function isLegacyDefaultSchedule(schedule) {
+            if (!Array.isArray(schedule) || schedule.length !== SCHEDULE_SLOTS) {
+                return false;
+            }
+
+            const expected = [
+                { enabled: true, on_hour: 6, on_minute: 0, duration_min: 60 },
+                { enabled: true, on_hour: 12, on_minute: 0, duration_min: 60 },
+                { enabled: true, on_hour: 18, on_minute: 0, duration_min: 60 }
+            ];
+
+            for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                const current = schedule[index] || {};
+                const target = expected[index];
+                if (
+                    current.enabled !== target.enabled ||
+                    Number(current.on_hour) !== target.on_hour ||
+                    Number(current.on_minute) !== target.on_minute ||
+                    Number(current.duration_min) !== target.duration_min
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         function loadScheduleConfig() {
@@ -1983,15 +1804,32 @@
                 if (!Array.isArray(parsed) || parsed.length !== SCHEDULE_SLOTS) {
                     return defaultScheduleConfig();
                 }
-                return parsed.map(function(item, index) {
+                const normalized = parsed.map(function(item, index) {
+                    const onHour = Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : (Number.isFinite(Number(item.hour)) ? Math.max(0, Math.min(23, Number(item.hour))) : defaultScheduleConfig()[index].on_hour);
+                    const onMinute = Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : (Number.isFinite(Number(item.minute)) ? Math.max(0, Math.min(59, Number(item.minute))) : defaultScheduleConfig()[index].on_minute);
+                    const durationMin = deriveScheduleDurationMinutes(item, index);
+                    const endTime = buildScheduleEndFromDuration(onHour, onMinute, durationMin);
                     return {
                         enabled: item.enabled === true,
-                        on_hour: Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : (Number.isFinite(Number(item.hour)) ? Math.max(0, Math.min(23, Number(item.hour))) : defaultScheduleConfig()[index].on_hour),
-                        on_minute: Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : (Number.isFinite(Number(item.minute)) ? Math.max(0, Math.min(59, Number(item.minute))) : defaultScheduleConfig()[index].on_minute),
-                        off_hour: Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : (Number.isFinite(Number(item.hour)) ? Math.max(0, Math.min(23, Number(item.hour) + 1)) : defaultScheduleConfig()[index].off_hour),
-                        off_minute: Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaultScheduleConfig()[index].off_minute
+                        on_hour: onHour,
+                        on_minute: onMinute,
+                        duration_min: durationMin,
+                        off_hour: endTime.off_hour,
+                        off_minute: endTime.off_minute
                     };
                 });
+
+                if (isLegacyDefaultSchedule(normalized)) {
+                    const requestedDefault = defaultScheduleConfig();
+                    try {
+                        localStorage.setItem("relite2_schedule_config", JSON.stringify(requestedDefault));
+                    } catch (err) {
+                        // ignore local storage failures
+                    }
+                    return requestedDefault;
+                }
+
+                return normalized;
             } catch (err) {
                 return defaultScheduleConfig();
             }
@@ -2015,62 +1853,19 @@
             }
         }
 
-        function markScheduleEditorActivity() {
-            lastScheduleEditorInputMs = Date.now();
-        }
-
-        function isScheduleEditorBusy() {
-            if (Date.now() - lastScheduleEditorInputMs <= SCHEDULE_EDIT_FREEZE_MS) {
-                return true;
-            }
-
-            const active = document.activeElement;
-            if (!active) {
-                return false;
-            }
-
-            const activeId = String(active.id || "");
-            if (activeId.indexOf("schedule-") === 0 || activeId.indexOf("dashAlarm") === 0 || activeId === "scheduleTargetMotor") {
-                return true;
-            }
-
-            return !!(active.closest && (active.closest("#scheduleGrid") || active.closest(".alarm-retry-box") || active.closest(".schedule-target")));
-        }
-
-        function sameSchedule(a, b) {
-            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
-                return false;
-            }
-            for (let i = 0; i < a.length; i++) {
-                const left = a[i] || {};
-                const right = b[i] || {};
-                if ((left.enabled === true) !== (right.enabled === true)) {
-                    return false;
-                }
-                if (Number(left.on_hour) !== Number(right.on_hour)) {
-                    return false;
-                }
-                if (Number(left.on_minute) !== Number(right.on_minute)) {
-                    return false;
-                }
-                if (Number(left.off_hour) !== Number(right.off_hour)) {
-                    return false;
-                }
-                if (Number(left.off_minute) !== Number(right.off_minute)) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         function normalizeScheduleEntry(item, index) {
             const defaults = defaultScheduleConfig()[index];
+            const onHour = Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : defaults.on_hour;
+            const onMinute = Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : defaults.on_minute;
+            const durationMin = clampScheduleDurationMinutes(Number(item.duration_min));
+            const endTime = buildScheduleEndFromDuration(onHour, onMinute, durationMin);
             return {
                 enabled: item.enabled === true,
-                on_hour: Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : defaults.on_hour,
-                on_minute: Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : defaults.on_minute,
-                off_hour: Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : defaults.off_hour,
-                off_minute: Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaults.off_minute
+                on_hour: onHour,
+                on_minute: onMinute,
+                duration_min: durationMin,
+                off_hour: endTime.off_hour,
+                off_minute: endTime.off_minute
             };
         }
 
@@ -2085,43 +1880,34 @@
             scheduleGrid.innerHTML = "";
 
             schedule.forEach(function(entry, index) {
+                const durationValue = clampScheduleDurationMinutes(Number(entry.duration_min));
                 const row = document.createElement("div");
                 row.className = "schedule-row";
                 row.innerHTML = "<label>Alarm " + (index + 1) + "</label>" +
                     "<div style=\"display:flex;gap:0.5rem;align-items:center;\">" +
                         "<span style=\"white-space:nowrap;\">ON</span>" +
                         "<input type=\"time\" id=\"schedule-on-time-" + index + "\" value=\"" + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + "\">" +
-                        "<span style=\"white-space:nowrap;\">OFF</span>" +
-                        "<input type=\"time\" id=\"schedule-off-time-" + index + "\" value=\"" + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0") + "\">" +
+                        "<span style=\"white-space:nowrap;\">DURATION</span>" +
+                        "<select id=\"schedule-duration-" + index + "\">" +
+                            SCHEDULE_ON_DURATION_OPTIONS.map(function(min) { return "<option value=\"" + min + "\" " + (min === durationValue ? "selected" : "") + ">" + formatDurationLabel(min) + "</option>"; }).join("") +
+                        "</select>" +
                         "<label style=\"margin-left:auto;\"><input type=\"checkbox\" id=\"schedule-enabled-" + index + "\" " + (entry.enabled ? "checked" : "") + "> Enabled</label>" +
                     "</div>" +
-                    "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(entry.off_hour).padStart(2, "0") + ":" + String(entry.off_minute).padStart(2, "0")) : "Disabled") + "</div>";
+                    "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / " + formatDurationLabel(durationValue)) : "Disabled") + "</div>";
                 scheduleGrid.appendChild(row);
-
-                const onElem = document.getElementById("schedule-on-time-" + index);
-                const offElem = document.getElementById("schedule-off-time-" + index);
-                const enabledElem = document.getElementById("schedule-enabled-" + index);
-                [onElem, offElem, enabledElem].forEach(function(elem) {
-                    if (!elem) {
-                        return;
-                    }
-                    elem.addEventListener("input", markScheduleEditorActivity);
-                    elem.addEventListener("change", markScheduleEditorActivity);
-                    elem.addEventListener("focus", markScheduleEditorActivity);
-                });
             });
         }
 
         function readScheduleEditor() {
             const schedule = [];
             for (let index = 0; index < SCHEDULE_SLOTS; index++) {
+                const defaults = defaultScheduleConfig()[index];
                 const onTimeElem = document.getElementById("schedule-on-time-" + index);
-                const offTimeElem = document.getElementById("schedule-off-time-" + index);
+                const durationElem = document.getElementById("schedule-duration-" + index);
                 const enabledElem = document.getElementById("schedule-enabled-" + index);
-                let onHour = 6;
-                let onMinute = 0;
-                let offHour = 7;
-                let offMinute = 0;
+                let onHour = defaults.on_hour;
+                let onMinute = defaults.on_minute;
+                let durationMin = defaults.duration_min;
                 if (onTimeElem && onTimeElem.value) {
                     const parts = onTimeElem.value.split(":");
                     if (parts.length === 2) {
@@ -2129,19 +1915,17 @@
                         onMinute = Math.max(0, Math.min(59, Number(parts[1])));
                     }
                 }
-                if (offTimeElem && offTimeElem.value) {
-                    const parts = offTimeElem.value.split(":");
-                    if (parts.length === 2) {
-                        offHour = Math.max(0, Math.min(23, Number(parts[0])));
-                        offMinute = Math.max(0, Math.min(59, Number(parts[1])));
-                    }
+                if (durationElem) {
+                    durationMin = clampScheduleDurationMinutes(Number(durationElem.value));
                 }
+                const endTime = buildScheduleEndFromDuration(onHour, onMinute, durationMin);
                 schedule.push({
                     enabled: enabledElem ? enabledElem.checked : true,
                     on_hour: onHour,
                     on_minute: onMinute,
-                    off_hour: offHour,
-                    off_minute: offMinute
+                    duration_min: durationMin,
+                    off_hour: endTime.off_hour,
+                    off_minute: endTime.off_minute
                 });
             }
             return schedule;
@@ -2161,7 +1945,6 @@
             }
             return topicPrefix + "/motor/" + id4 + "/control";
         }
-
 
         function getDashboardIstTimeHHMM() {
             const formatted = new Date().toLocaleTimeString("en-GB", {
@@ -2236,12 +2019,14 @@
 
                 const payload = {
                     schedule: schedule.map(function(entry) {
+                        const endTime = buildScheduleEndFromDuration(entry.on_hour, entry.on_minute, entry.duration_min);
                         return {
                             enabled: entry.enabled,
                             on_hour: entry.on_hour,
                             on_minute: entry.on_minute,
-                            off_hour: entry.off_hour,
-                            off_minute: entry.off_minute
+                            duration_min: clampScheduleDurationMinutes(entry.duration_min),
+                            off_hour: endTime.off_hour,
+                            off_minute: endTime.off_minute
                         };
                     })
                 };
@@ -2258,132 +2043,8 @@
             });
         }
 
-        function sendScheduleToDevicePromise(schedule) {
-            return new Promise(function(resolve, reject) {
-                if (!isConnected || !client) {
-                    reject(new Error("MQTT is not connected"));
-                    return;
-                }
-
-                const targetTopic = getScheduleTargetTopic();
-                publishDeviceTime(targetTopic, function(timeErr) {
-                    if (timeErr) {
-                        reject(new Error("time sync failed"));
-                        return;
-                    }
-
-                    const payload = {
-                        schedule: schedule.map(function(entry) {
-                            return {
-                                enabled: entry.enabled,
-                                on_hour: entry.on_hour,
-                                on_minute: entry.on_minute,
-                                off_hour: entry.off_hour,
-                                off_minute: entry.off_minute
-                            };
-                        })
-                    };
-
-                    const message = JSON.stringify(payload);
-                    client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
-                        if (err) {
-                            reject(new Error("device schedule publish failed"));
-                            return;
-                        }
-
-                        addLog("Schedule sent to " + targetTopic + ": " + message);
-                        resolve();
-                    });
-                });
-            });
-        }
-
-        function autoSyncScheduleToOnlineDevices(triggerLabel) {
-            if (!isConnected || !client) {
-                return;
-            }
-
-            if (!motors.some(function(motor) { return !!motor.deviceOnline; })) {
-                return;
-            }
-
-            const nowMs = Date.now();
-            if (nowMs - lastAutoDeviceScheduleSyncMs < AUTO_DEVICE_SCHEDULE_SYNC_GAP_MS) {
-                return;
-            }
-            lastAutoDeviceScheduleSyncMs = nowMs;
-
-            const schedule = loadScheduleConfig();
-            const targetTopic = topicPrefix + "/motor/all/control";
-
-            publishDeviceTime(targetTopic, function(timeErr) {
-                if (timeErr) {
-                    addLog("Auto schedule sync skipped (time sync failed): " + timeErr.message);
-                    return;
-                }
-
-                const payload = {
-                    schedule: schedule.map(function(entry) {
-                        return {
-                            enabled: entry.enabled,
-                            on_hour: entry.on_hour,
-                            on_minute: entry.on_minute,
-                            off_hour: entry.off_hour,
-                            off_minute: entry.off_minute
-                        };
-                    })
-                };
-
-                const message = JSON.stringify(payload);
-                client.publish(targetTopic, message, { qos: 1, retain: false }, function(err) {
-                    if (err) {
-                        addLog("Auto schedule sync failed: " + err.message);
-                        return;
-                    }
-
-                    trackTx(targetTopic, message);
-                    addLog("Auto schedule synced to online devices" + (triggerLabel ? " (" + triggerLabel + ")" : "") + ".");
-                    setScheduleMessage("Device online detected: schedule auto-synced.");
-                });
-            });
-        }
-
-        async function saveAlarmEverywhere() {
-            markScheduleEditorActivity();
-            const schedule = readScheduleEditor();
-            saveScheduleConfig(schedule);
-            persistDashboardAlarmSettingsFromEditor(true);
-
-            let deviceSaved = false;
-            const errors = [];
-
-            try {
-                await sendScheduleToDevicePromise(schedule);
-                deviceSaved = true;
-            } catch (err) {
-                errors.push("Device: " + err.message);
-            }
-
-            if (deviceSaved) {
-                setScheduleMessage("Alarm saved local + device.");
-                addLog("Alarm saved local/device.");
-                return;
-            }
-
-            setScheduleMessage("Saved local only. " + (errors.length ? errors.join(" | ") : ""));
-            addLog("Alarm save partial failure: " + errors.join(" | "));
-        }
-
         function updateScheduleFromPayload(scheduleArray) {
-            if (!ALLOW_AUTO_SCHEDULE_IMPORT) {
-                return;
-            }
-
             if (!Array.isArray(scheduleArray)) {
-                return;
-            }
-
-            if (isScheduleEditorBusy()) {
                 return;
             }
 
@@ -2392,16 +2053,11 @@
                 const item = scheduleArray[index] || {};
                 const onHour = Number.isFinite(Number(item.on_hour)) ? Math.max(0, Math.min(23, Number(item.on_hour))) : defaultScheduleConfig()[index].on_hour;
                 const onMinute = Number.isFinite(Number(item.on_minute)) ? Math.max(0, Math.min(59, Number(item.on_minute))) : defaultScheduleConfig()[index].on_minute;
-                const offHour = Number.isFinite(Number(item.off_hour)) ? Math.max(0, Math.min(23, Number(item.off_hour))) : defaultScheduleConfig()[index].off_hour;
-                const offMinute = Number.isFinite(Number(item.off_minute)) ? Math.max(0, Math.min(59, Number(item.off_minute))) : defaultScheduleConfig()[index].off_minute;
+                const durationMin = deriveScheduleDurationMinutes(item, index);
+                const endTime = buildScheduleEndFromDuration(onHour, onMinute, durationMin);
                 const enabled = item.enabled === true;
-                schedule.push({ enabled: enabled, on_hour: onHour, on_minute: onMinute, off_hour: offHour, off_minute: offMinute });
+                schedule.push({ enabled: enabled, on_hour: onHour, on_minute: onMinute, duration_min: durationMin, off_hour: endTime.off_hour, off_minute: endTime.off_minute });
             }
-            const existing = loadScheduleConfig();
-            if (sameSchedule(existing, schedule)) {
-                return;
-            }
-
             saveScheduleConfig(schedule);
             renderScheduleEditor();
             setScheduleMessage("Schedule updated from device status.");
@@ -2485,72 +2141,44 @@
             return rawPayload;
         }
 
-        function parseModuleIdFromValue(raw) {
-            const n = Number(raw);
-            if (Number.isInteger(n) && n >= 1 && n <= MOTOR_COUNT) {
-                return n;
-            }
-            if (typeof raw === "string") {
-                const m = raw.trim().match(/^(\d{1,4})$/);
-                if (m && m[1]) {
-                    const parsed = Number(m[1]);
-                    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= MOTOR_COUNT) {
-                        return parsed;
-                    }
-                }
-            }
-            return 0;
-        }
-
-        function parseModuleIdFromPayload(payload) {
-            if (!payload || typeof payload !== "object") {
-                return 0;
-            }
-
-            // Keep this strict to avoid cross-device mixing from generic fields like id/node/controller.
+        function resolveModuleId(payload, topic) {
             const candidates = [
-                payload.module_id,
-                payload.module_id4,
-                payload.motor_id,
-                payload.module,
-                payload.motor_no
+                payload && payload.module_id,
+                payload && payload.module_id4,
+                payload && payload.motor_id,
+                payload && payload.id,
+                payload && payload.module,
+                payload && payload.node_id,
+                payload && payload.controller_id,
+                payload && payload.motor_no
             ];
 
             for (let i = 0; i < candidates.length; i++) {
-                const parsed = parseModuleIdFromValue(candidates[i]);
-                if (parsed) {
-                    return parsed;
+                const raw = candidates[i];
+                const n = Number(raw);
+                if (Number.isInteger(n) && n >= 1 && n <= MOTOR_COUNT) {
+                    return n;
+                }
+
+                if (typeof raw === "string") {
+                    const m = raw.match(/(\d{1,4})/);
+                    if (m && m[1]) {
+                        const parsed = Number(m[1]);
+                        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= MOTOR_COUNT) {
+                            return parsed;
+                        }
+                    }
                 }
             }
 
-            return 0;
-        }
-
-        function parseModuleIdFromTopic(topic) {
-            if (typeof topic !== "string") {
-                return 0;
-            }
-            const m = topic.match(/\/motor\/(\d+)\/(telemetry|status)$/i);
-            if (!m || !m[1]) {
-                return 0;
-            }
-            return parseModuleIdFromValue(m[1]);
-        }
-
-        function resolveModuleId(payload, topic) {
-            const topicId = parseModuleIdFromTopic(topic);
-            const payloadId = parseModuleIdFromPayload(payload);
-
-            // If both are present and disagree, ignore the message to prevent data mix.
-            if (topicId && payloadId && topicId !== payloadId) {
-                return 0;
-            }
-
-            if (topicId) {
-                return topicId;
-            }
-            if (payloadId) {
-                return payloadId;
+            if (typeof topic === "string") {
+                const m = topic.match(/\/motor\/(\d+)\/(telemetry|status)$/i);
+                if (m && m[1]) {
+                    const id = Number(m[1]);
+                    if (Number.isInteger(id) && id >= 1 && id <= MOTOR_COUNT) {
+                        return id;
+                    }
+                }
             }
 
             return 0;
@@ -2648,9 +2276,6 @@
                 voltageY: null,
                 voltageB: null,
                 current: null,
-                x1Raw: null,
-                x3Raw: null,
-                powerSupplyCut: false,
                 currentRawAdc: null,
                 currentAdcVoltage: null,
                 power: null,
@@ -2701,10 +2326,10 @@
                 manualTimerActive: false,
                 manualTimerRemainingSec: 0,
                 manualTimerDurationSec: 0,
+                dashboardAlarmEnabled: loadMotorDashboardAlarmEnabled(id),
                 localAlarmActive: false,
                 deviceAlarmActive: false,
-                manualDurationMinutes: 20,
-                manualDurationLocked: false
+                eAlarmOnAtMs: null
             };
         });
 
@@ -2721,6 +2346,8 @@
         let powerChart;
         let txCount = 0;
         let rxCount = 0;
+        let uiEditLockUntilMs = 0;
+        const MOTOR_RENDER_THROTTLE_MS = 120;
         const motorMiniMaxPoints = 24;
         const motorSampleSeconds = 5;
 
@@ -2848,20 +2475,6 @@
             });
         }
 
-        function captureScrollPosition() {
-            return {
-                x: window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0,
-                y: window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
-            };
-        }
-
-        function restoreScrollPosition(position) {
-            if (!position) {
-                return;
-            }
-            window.scrollTo(position.x || 0, position.y || 0);
-        }
-
         function addLog(message) {
             const log = document.getElementById("log");
             const line = document.createElement("div");
@@ -2936,7 +2549,32 @@
         }
 
         function renderMotorCard(motor) {
-            const scrollPosition = captureScrollPosition();
+            if (!motor) {
+                return;
+            }
+
+            const forceRender = arguments.length > 1 && arguments[1] === true;
+            if (!forceRender) {
+                const nowMs = Date.now();
+                const lastRenderAtMs = Number(motor.lastRenderedAtMs || 0);
+                const elapsedMs = nowMs - lastRenderAtMs;
+
+                if (elapsedMs < MOTOR_RENDER_THROTTLE_MS) {
+                    if (!motor.renderRefreshQueued) {
+                        motor.renderRefreshQueued = true;
+                        setTimeout(function() {
+                            motor.renderRefreshQueued = false;
+                            renderMotorCard(motor, true);
+                        }, MOTOR_RENDER_THROTTLE_MS - elapsedMs);
+                    }
+                    return;
+                }
+
+                motor.lastRenderedAtMs = nowMs;
+            } else {
+                motor.lastRenderedAtMs = Date.now();
+            }
+
             const card = document.getElementById("motor-card-" + motor.id);
             const badge = document.getElementById("motor-state-" + motor.id);
             const motorNameText = document.getElementById("motor-name-text-" + motor.id);
@@ -2955,6 +2593,7 @@
             const unbalanceInput = document.getElementById("motor-unbalance-input-" + motor.id);
             const buttonMode = document.getElementById("motor-btn-mode-" + motor.id);
             const phaseSequenceChip = document.getElementById("motor-phase-sequence-" + motor.id);
+            const phaseSelect = document.getElementById("motor-phase-select-" + motor.id);
             const voltageProtectionBtn = document.getElementById("motor-voltage-protect-btn-" + motor.id);
             const last4Inline = document.getElementById("motor-last4-inline-" + motor.id);
             const currentValue = document.getElementById("motor-current-" + motor.id);
@@ -2963,17 +2602,14 @@
             const dryRunChip = document.getElementById("motor-dryrun-chip-" + motor.id);
             const overloadChip = document.getElementById("motor-overload-chip-" + motor.id);
             const currentProtectionBtn = document.getElementById("motor-current-protect-btn-" + motor.id);
+            const dashboardAlarmBtn = document.getElementById("motor-dashboard-alarm-btn-" + motor.id);
             const deviceState = document.getElementById("motor-device-state-" + motor.id);
             const deviceLastSeen = document.getElementById("motor-device-last-" + motor.id);
-            const manualDurationTrigger = document.getElementById("motor-manual-duration-trigger-" + motor.id);
-            const manualDurationMenu = document.getElementById("motor-manual-duration-menu-" + motor.id);
+            const manualDurationSelect = document.getElementById("motor-manual-duration-" + motor.id);
             const manualTimerLabel = document.getElementById("motor-manual-timer-label-" + motor.id);
+            const eAlarmTimeLabel = document.getElementById("motor-ealarm-time-" + motor.id);
 
-            if (!card || !badge || !motorNameText || !relayNameText || !runtimeText || !statusChip || !ignoreFaultLowVoltageBtn || !ignoreFaultUnbalanceBtn || !ignoreFaultPhaseBtn || !ignoreFaultDryRunBtn || !ignoreFaultCurrentBtn || !buttonMode || !voltageValue || !voltageAlertChip || !unbalanceAlertChip || !lowVoltageInput || !unbalanceInput || !phaseSequenceChip || !voltageProtectionBtn || !last4Inline || !currentValue || !dryRunInput || !overloadInput || !dryRunChip || !overloadChip || !currentProtectionBtn || !deviceState || !deviceLastSeen || !manualDurationTrigger || !manualDurationMenu || !manualTimerLabel) {
-                return;
-            }
-
-            if (motor.manualDurationLocked) {
+            if (!card || !badge || !motorNameText || !relayNameText || !runtimeText || !statusChip || !ignoreFaultLowVoltageBtn || !ignoreFaultUnbalanceBtn || !ignoreFaultPhaseBtn || !ignoreFaultDryRunBtn || !ignoreFaultCurrentBtn || !buttonMode || !voltageValue || !voltageAlertChip || !unbalanceAlertChip || !lowVoltageInput || !unbalanceInput || !phaseSequenceChip || !phaseSelect || !voltageProtectionBtn || !last4Inline || !currentValue || !dryRunInput || !overloadInput || !dryRunChip || !overloadChip || !currentProtectionBtn || !dashboardAlarmBtn || !deviceState || !deviceLastSeen || !manualDurationSelect || !manualTimerLabel || !eAlarmTimeLabel) {
                 return;
             }
 
@@ -2991,9 +2627,9 @@
                 ? motor.motorRunningCurrent
                 : (motor.current !== null && Number.isFinite(Number(motor.current)) && Number(motor.current) > Number(motor.motorOnCurrentThresholdA || 1.0));
             const alarmActive = !!motor.localAlarmActive || !!motor.deviceAlarmActive;
-            const alarmLabel = motor.deviceAlarmActive && !motor.localAlarmActive ? "E_alarm" : "d_alarm";
+            const alarmLabel = motor.deviceAlarmActive ? "E_alarm" : "d_alarm";
             statusChip.textContent = alarmActive
-                ? (motor.state ? alarmLabel : "ALARM OFF") + " | D27 " + d27Label
+                ? alarmLabel + " | D27 " + d27Label
                 : (runningByCurrent ? "STARTED" : "STOPPED") + " | D27 " + d27Label;
             if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
                 const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
@@ -3001,15 +2637,10 @@
             }
             statusChip.className = (motor.state || motor.d27On === true || runningByCurrent || alarmActive) ? "motor-status-chip on" : "motor-status-chip";
 
-            const durationFromTelemetry = Number(motor.manualTimerDurationSec) > 0 ? Math.round(Number(motor.manualTimerDurationSec) / 60) : 0;
-            if (motor.manualTimerActive && MANUAL_ON_DURATION_OPTIONS.indexOf(durationFromTelemetry) >= 0) {
-                motor.manualDurationMinutes = durationFromTelemetry;
+            const durationMin = Number(motor.manualTimerDurationSec) > 0 ? Math.round(Number(motor.manualTimerDurationSec) / 60) : 20;
+            if (document.activeElement !== manualDurationSelect && MANUAL_ON_DURATION_OPTIONS.indexOf(durationMin) >= 0) {
+                manualDurationSelect.value = String(durationMin);
             }
-            if (MANUAL_ON_DURATION_OPTIONS.indexOf(Number(motor.manualDurationMinutes)) < 0) {
-                motor.manualDurationMinutes = 20;
-            }
-            manualDurationTrigger.textContent = formatManualDurationLabel(motor.manualDurationMinutes);
-            manualDurationMenu.className = motor.manualDurationLocked ? "manual-duration-menu open" : "manual-duration-menu";
 
             if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
                 const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
@@ -3019,6 +2650,20 @@
                 manualTimerLabel.textContent = "TIMER INACTIVE";
                 manualTimerLabel.style.color = "#35506f";
             }
+
+            if (motor.deviceAlarmActive) {
+                const alarmOnMs = Number(motor.eAlarmOnAtMs || findLatestEAlarmOnTimestamp(motor));
+                eAlarmTimeLabel.textContent = "E ALARM ON TIME: " + (alarmOnMs > 0 ? formatSwitchTimestamp(alarmOnMs) : "--");
+                eAlarmTimeLabel.style.color = "#9b2d2d";
+                eAlarmTimeLabel.style.background = "#fbe6e6";
+            } else {
+                eAlarmTimeLabel.textContent = "E ALARM ON TIME: --";
+                eAlarmTimeLabel.style.color = "#35506f";
+                eAlarmTimeLabel.style.background = "#e8edf4";
+            }
+
+            dashboardAlarmBtn.textContent = motor.dashboardAlarmEnabled ? "D-ALARM ON" : "D-ALARM OFF";
+            dashboardAlarmBtn.className = motor.dashboardAlarmEnabled ? "fault-ignore-btn on" : "fault-ignore-btn";
 
             buttonMode.textContent = motor.mode === "MANUAL" ? "MANUAL" : "AUTO";
             buttonMode.className = motor.mode === "MANUAL" ? "motor-btn motor-btn-mode manual" : "motor-btn motor-btn-mode";
@@ -3048,31 +2693,17 @@
                 unbalanceInput.value = String(Math.round(unbalanceThreshold));
             }
 
-            const computedPowerSupplyCut = Number.isFinite(Number(motor.x3Raw)) && Number(motor.x3Raw) > X3_POWER_SUPPLY_CUT_THRESHOLD;
-            const powerSupplyCut = (typeof motor.powerSupplyCut === "boolean") ? motor.powerSupplyCut : computedPowerSupplyCut;
-
             let voltageDisplayValue = null;
-            const hasRyb = (motor.voltageR !== null && motor.voltageY !== null && motor.voltageB !== null);
-            const vrText = hasRyb ? Number(motor.voltageR).toFixed(1) : "--";
-            const vyText = hasRyb ? Number(motor.voltageY).toFixed(1) : "--";
-            const vbText = hasRyb ? Number(motor.voltageB).toFixed(1) : "--";
-
-            if (hasRyb) {
+            if (motor.voltageR !== null && motor.voltageY !== null && motor.voltageB !== null) {
+                voltageValue.textContent = "R " + Number(motor.voltageR).toFixed(1) + "  Y " + Number(motor.voltageY).toFixed(1) + "  B " + Number(motor.voltageB).toFixed(1);
                 voltageDisplayValue = (Number(motor.voltageR) + Number(motor.voltageY) + Number(motor.voltageB)) / 3.0;
-            } else if (motor.voltage !== null && Number.isFinite(Number(motor.voltage))) {
-                voltageDisplayValue = Number(motor.voltage);
+            } else {
+                const voltageText = motor.voltage === null ? "--" : Number(motor.voltage).toFixed(1) + "V";
+                voltageValue.textContent = voltageText;
+                voltageDisplayValue = motor.voltage === null ? null : Number(motor.voltage);
             }
 
-            const powerLabelText = powerSupplyCut ? "POWER SUPPLY CUT" : "POWER SUPPLY ON";
-            const powerLabelColor = powerSupplyCut ? "#c0392b" : "#1f7d48";
-
-            voltageValue.innerHTML =
-                "<div style=\"margin-bottom:8px;\">R " + vrText + "  Y " + vyText + "  B " + vbText + "</div>" +
-                "<div style=\"color:" + powerLabelColor + ";font-weight:700;\">" + powerLabelText + "</div>";
-            voltageValue.style.color = "";
-            voltageValue.style.fontWeight = "";
-
-            const computedLowVoltage = powerSupplyCut || (voltageDisplayValue !== null && Number.isFinite(voltageDisplayValue) && voltageDisplayValue < threshold);
+            const computedLowVoltage = voltageDisplayValue !== null && Number.isFinite(voltageDisplayValue) && voltageDisplayValue < threshold;
             const lowVoltageActive = (typeof motor.lowVoltageActive === "boolean") ? motor.lowVoltageActive : computedLowVoltage;
             const voltageStatusText = lowVoltageActive ? "FAULTY" : "OK";
             const voltageStatusClass = lowVoltageActive ? "faulty" : "ok";
@@ -3099,19 +2730,28 @@
             voltageProtectionBtn.textContent = motor.voltageProtectionEnabled ? "V-PROTECT ON" : "V-PROTECT OFF";
             voltageProtectionBtn.className = motor.voltageProtectionEnabled ? "protection-toggle-btn" : "protection-toggle-btn off";
 
+            const normalizedPhaseSet = normalizePhaseSequence(motor.phaseSequenceSet, true);
+            if (document.activeElement !== phaseSelect) {
+                phaseSelect.value = (normalizedPhaseSet === "RYB" || normalizedPhaseSet === "YBR" || normalizedPhaseSet === "BRY")
+                    ? normalizedPhaseSet
+                    : "RYB";
+            }
+
             if (phaseSequenceChip) {
-                const hasX1 = Number.isFinite(Number(motor.x1Raw));
-                const phaseFaulty = hasX1 ? Number(motor.x1Raw) >= X1_PHASE_OK_THRESHOLD : true;
-                const phaseStatusClass = phaseFaulty ? "faulty" : "ok";
-                const phaseStatusText = phaseFaulty ? "FAULTY" : "OK";
-                phaseSequenceChip.innerHTML = "<span class=\"set-chip-label\">PHASE SEQUENCE</span>&nbsp;<span class=\"set-chip-value " + phaseStatusClass + "\">" + phaseStatusText + "</span>";
+                const seq = normalizePhaseSequence(motor.phaseSequence, false);
+                const seqText = (seq || "UNKNOWN");
+                const seqClass = "phase-" + String(seqText).toLowerCase();
+                const phaseMatched = (seq === normalizedPhaseSet) && (seq === "RYB" || seq === "YBR" || seq === "BRY");
+                const phaseStatusClass = phaseMatched ? "ok" : "faulty";
+                const phaseStatusText = phaseMatched ? "OK" : "FAULTY";
+                phaseSequenceChip.innerHTML = "<span class=\"set-chip-label\">PHASE SEQUENCE</span>&nbsp;<span class=\"set-chip-value " + seqClass + "\">" + seqText + "</span>&nbsp;<span class=\"set-chip-value " + phaseStatusClass + "\">" + phaseStatusText + "</span>";
                 phaseSequenceChip.className = "set-value-chip";
 
-                if ((!phaseFaulty || !motor.state) && motor.phaseTripSent) {
+                if ((phaseMatched || !motor.state) && motor.phaseTripSent) {
                     motor.phaseTripSent = false;
                 }
 
-                if (motor.state && motor.voltageProtectionEnabled && !motor.ignoredFaults.phase && phaseFaulty && !motor.phaseTripSent) {
+                if (motor.state && motor.voltageProtectionEnabled && !motor.ignoredFaults.phase && !phaseMatched && !motor.phaseTripSent) {
                     motor.phaseTripSent = true;
                     motor.pendingTripReason = "PHASE_TRIP";
                     updateMotorFeedback(motor.id, "Phase fault: protection OFF command", "#c0392b");
@@ -3230,8 +2870,6 @@
             }
 
             updateDeviceSummary();
-
-            restoreScrollPosition(scrollPosition);
         }
 
         function updateDeviceSummary() {
@@ -3241,18 +2879,6 @@
             }
             const onlineCount = motors.filter(function(m) { return m.deviceOnline; }).length;
             summary.textContent = "Device Online: " + onlineCount + "/" + MOTOR_COUNT;
-
-            const onlineDeviceList = document.getElementById("onlineDeviceList");
-            if (!onlineDeviceList) {
-                return;
-            }
-
-            const onlineControllers = motors
-                .filter(function(motor) { return motor.deviceOnline; })
-                .sort(function(a, b) { return a.id - b.id; })
-                .map(function(motor) { return motor.id3; });
-
-            onlineDeviceList.textContent = "Online Controllers: " + (onlineControllers.length > 0 ? onlineControllers.join(", ") : "none");
         }
 
         function formatRuntime(totalSeconds) {
@@ -3274,6 +2900,67 @@
             }
         }
 
+        function touchUiEditLock(durationMs) {
+            const ms = Number(durationMs);
+            const holdMs = Number.isFinite(ms) && ms > 0 ? ms : 2000;
+            uiEditLockUntilMs = Math.max(uiEditLockUntilMs, Date.now() + holdMs);
+        }
+
+        function isUserEditingDashboardControls() {
+            if (document.querySelector(".name-edit-grid.open")) {
+                return true;
+            }
+
+            const active = document.activeElement;
+            if (!active || active === document.body) {
+                return false;
+            }
+
+            const tag = String(active.tagName || "").toUpperCase();
+            if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+                return !!active.closest(".motor-card") || !!active.closest("#scheduleGrid") || active.id === "scheduleTargetMotor";
+            }
+
+            return false;
+        }
+
+        function isUiEditLocked() {
+            return isUserEditingDashboardControls() || Date.now() < uiEditLockUntilMs;
+        }
+
+        function bindUiEditLockEvents() {
+            const shouldLockForTarget = function(target) {
+                if (!target || typeof target.closest !== "function") {
+                    return false;
+                }
+                return !!target.closest(".motor-card") || !!target.closest("#scheduleGrid") || target.id === "scheduleTargetMotor";
+            };
+
+            document.addEventListener("focusin", function(event) {
+                if (shouldLockForTarget(event.target)) {
+                    touchUiEditLock(2000);
+                }
+            });
+
+            document.addEventListener("input", function(event) {
+                if (shouldLockForTarget(event.target)) {
+                    touchUiEditLock(2500);
+                }
+            });
+
+            document.addEventListener("change", function(event) {
+                if (shouldLockForTarget(event.target)) {
+                    touchUiEditLock(2500);
+                }
+            });
+
+            document.addEventListener("keydown", function(event) {
+                if (shouldLockForTarget(event.target)) {
+                    touchUiEditLock(2500);
+                }
+            });
+        }
+
         function toggleNameEditor(id) {
             motors.forEach(function(motor) {
                 const el = document.getElementById("name-edit-grid-" + motor.id);
@@ -3285,6 +2972,7 @@
                     const willOpen = !el.classList.contains("open");
                     el.classList.toggle("open", willOpen);
                     if (willOpen) {
+                        touchUiEditLock(5000);
                         applyNameInputsToUI(motor);
                     }
                 } else {
@@ -3299,14 +2987,17 @@
                 return;
             }
 
+            touchUiEditLock(3000);
+
             const motorInput = document.getElementById("motor-name-input-" + id);
             const passwordInput = document.getElementById("motor-pass-input-" + id);
 
             const nextMotorName = motorInput ? motorInput.value.trim() : "";
             const enteredPassword = passwordInput ? passwordInput.value : "";
+            const passwordRequired = String(NAME_EDIT_PASSWORD || "").trim().length > 0;
 
-            if (enteredPassword !== NAME_EDIT_PASSWORD) {
-                updateMotorFeedback(id, "Wrong password", "#c0392b");
+            if (passwordRequired && enteredPassword && enteredPassword !== NAME_EDIT_PASSWORD) {
+                updateMotorFeedback(id, "Wrong password (hint: 1234)", "#c0392b");
                 if (passwordInput) {
                     passwordInput.value = "";
                 }
@@ -3320,46 +3011,17 @@
             renderMotorCard(motor);
             applyNameInputsToUI(motor);
             populateScheduleMotorSelect();
-            updateMotorFeedback(id, saved ? "Name saved" : "Save failed", saved ? "#1f7d48" : "#c0392b");
+
+            updateMotorFeedback(id, saved ? "Name saved on dashboard" : "Save failed", saved ? "#1f7d48" : "#c0392b");
+        }
+
+        function isNameEditorInputActive() {
+            return isUiEditLocked();
         }
 
         function renderAllMotors() {
-            const scrollPosition = captureScrollPosition();
             motors.forEach(function(motor) {
                 renderMotorCard(motor);
-            });
-            reorderMotorGridByNumber();
-            restoreScrollPosition(scrollPosition);
-        }
-
-        function isMotorEditorActive() {
-            const active = document.activeElement;
-            if (!active) {
-                return false;
-            }
-
-            if (active.tagName !== "INPUT" && active.tagName !== "TEXTAREA" && active.tagName !== "SELECT") {
-                return false;
-            }
-
-            return !!active.closest(".name-edit-grid");
-        }
-
-        function reorderMotorGridByNumber() {
-            const grid = document.getElementById("motorGrid");
-            if (!grid) {
-                return;
-            }
-
-            const ordered = motors.slice().sort(function(a, b) {
-                return a.id - b.id;
-            });
-
-            ordered.forEach(function(motor) {
-                const card = document.getElementById("motor-card-" + motor.id);
-                if (card) {
-                    grid.appendChild(card);
-                }
             });
         }
 
@@ -3386,10 +3048,27 @@
             motor.state = nextState;
             if (!nextState) {
                 motor.deviceAlarmActive = false;
-            } else if (isAlarmOnReason(sourceText)) {
-                motor.deviceAlarmActive = true;
-            } else if (sourceUpper !== "STATUS" && sourceUpper !== "DASHBOARD") {
-                motor.deviceAlarmActive = false;
+                motor.localAlarmActive = false;
+                motor.eAlarmOnAtMs = null;
+            } else {
+                if (isDeviceAlarmOnReason(sourceText)) {
+                    motor.deviceAlarmActive = true;
+                    if (!Number.isFinite(Number(motor.eAlarmOnAtMs)) || Number(motor.eAlarmOnAtMs) <= 0) {
+                        motor.eAlarmOnAtMs = Date.now();
+                    }
+                } else if (isDeviceAlarmOffReason(sourceText)) {
+                    motor.deviceAlarmActive = false;
+                    motor.eAlarmOnAtMs = null;
+                }
+
+                if (isDashboardAlarmOnReason(sourceText)) {
+                    motor.localAlarmActive = !!motor.dashboardAlarmEnabled;
+                } else if (isDashboardAlarmOffReason(sourceText)) {
+                    motor.localAlarmActive = false;
+                }
+
+                // Keep current alarm flags for regular status/control updates.
+                // This avoids clearing E_alarm when only D_alarm is toggled OFF.
             }
             if (previousState === nextState && sourceUpper !== "STATUS" && sourceUpper !== "DASHBOARD") {
                 updateMotorFeedback(id, getMotorFeedbackLabel(nextState, sourceText, true), "#1f7d48");
@@ -3470,7 +3149,7 @@
             renderMotorCard(motor);
         }
 
-        function setMotorParams(id, voltage, current, power, voltageR, voltageY, voltageB, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec, x1Raw, x3Raw, powerSupplyCut) {
+        function setMotorParams(id, voltage, current, power, voltageR, voltageY, voltageB, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec) {
             const motor = motors.find(function(m) { return m.id === id; });
             if (!motor) {
                 return;
@@ -3581,6 +3260,10 @@
                 }
 
                 motor.switchEvents = incomingEvents;
+                const latestEAlarmOnTs = findLatestEAlarmOnTimestamp(motor);
+                if (latestEAlarmOnTs > 0 && motor.deviceAlarmActive) {
+                    motor.eAlarmOnAtMs = latestEAlarmOnTs;
+                }
                 motor.switchHistorySyncedAt = Date.now();
                 saveMotorSwitchEvents(motor);
             }
@@ -3611,23 +3294,6 @@
                     motor.motorOnCurrentThresholdA = parsedRunThreshold;
                 }
             }
-            if (typeof x1Raw !== "undefined" && x1Raw !== null) {
-                const parsedX1 = Number(x1Raw);
-                if (Number.isFinite(parsedX1)) {
-                    motor.x1Raw = parsedX1;
-                }
-            }
-            if (typeof x3Raw !== "undefined" && x3Raw !== null) {
-                const parsedX3 = Number(x3Raw);
-                if (Number.isFinite(parsedX3)) {
-                    motor.x3Raw = parsedX3;
-                }
-            }
-            if (typeof powerSupplyCut !== "undefined" && powerSupplyCut !== null) {
-                motor.powerSupplyCut = readBooleanField(powerSupplyCut);
-            } else if (motor.x3Raw !== null) {
-                motor.powerSupplyCut = Number(motor.x3Raw) > X3_POWER_SUPPLY_CUT_THRESHOLD;
-            }
             if (typeof manualTimerActive !== "undefined" && manualTimerActive !== null) {
                 motor.manualTimerActive = readBooleanField(manualTimerActive);
             }
@@ -3648,91 +3314,19 @@
         }
 
         function getManualDurationMinutes(id) {
-            const motor = motors.find(function(m) { return m.id === id; });
-            if (!motor) {
+            const select = document.getElementById("motor-manual-duration-" + id);
+            if (!select) {
                 return 0;
             }
-            const value = Number(motor.manualDurationMinutes);
-            return (Number.isFinite(value) && MANUAL_ON_DURATION_OPTIONS.indexOf(value) >= 0) ? value : 0;
-        }
 
-        function formatManualDurationLabel(minutes) {
-            const mins = Number(minutes);
-            if (mins === 60) {
-                return "Manual ON 1h";
+            const value = Number(select.value);
+            if (!Number.isFinite(value)) {
+                return 0;
             }
-            if (mins === 120) {
-                return "Manual ON 2h";
+            if (MANUAL_ON_DURATION_OPTIONS.indexOf(value) < 0) {
+                return 0;
             }
-            if (mins === 180) {
-                return "Manual ON 3h";
-            }
-            return "Manual ON " + mins + "m";
-        }
-
-        function lockManualDuration(id, locked) {
-            const motor = motors.find(function(m) { return m.id === id; });
-            if (!motor) {
-                return;
-            }
-
-            motor.manualDurationLocked = !!locked;
-            const menu = document.getElementById("motor-manual-duration-menu-" + id);
-            if (menu) {
-                menu.className = motor.manualDurationLocked ? "manual-duration-menu open" : "manual-duration-menu";
-            }
-
-            renderMotorCard(motor);
-        }
-
-        function toggleManualDurationMenu(id) {
-            const motor = motors.find(function(m) { return m.id === id; });
-            if (!motor) {
-                return;
-            }
-
-            const shouldOpen = !motor.manualDurationLocked;
-            motors.forEach(function(m) {
-                if (m.id !== id && m.manualDurationLocked) {
-                    m.manualDurationLocked = false;
-                    const menu = document.getElementById("motor-manual-duration-menu-" + m.id);
-                    if (menu) {
-                        menu.className = "manual-duration-menu";
-                    }
-                }
-            });
-
-            lockManualDuration(id, shouldOpen);
-        }
-
-        function selectManualDuration(id, minutes) {
-            const motor = motors.find(function(m) { return m.id === id; });
-            if (!motor) {
-                return;
-            }
-
-            const value = Number(minutes);
-            if (!Number.isFinite(value) || MANUAL_ON_DURATION_OPTIONS.indexOf(value) < 0) {
-                motor.manualDurationMinutes = 20;
-            } else {
-                motor.manualDurationMinutes = value;
-            }
-
-            lockManualDuration(id, false);
-        }
-
-        function closeAllManualDurationMenus() {
-            motors.forEach(function(motor) {
-                if (!motor.manualDurationLocked) {
-                    return;
-                }
-                motor.manualDurationLocked = false;
-                const menu = document.getElementById("motor-manual-duration-menu-" + motor.id);
-                if (menu) {
-                    menu.className = "manual-duration-menu";
-                }
-                renderMotorCard(motor);
-            });
+            return value;
         }
 
         function sendCurrentProtectionSetCommand(id) {
@@ -4013,6 +3607,85 @@
             });
         }
 
+        function sendWiFiConfigCommand(id) {
+            if (!isConnected || !client) {
+                updateMotorFeedback(id, "Not connected", "#c0392b");
+                return;
+            }
+
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const ssidInput = document.getElementById("motor-wifi-ssid-input-" + id);
+            const passwordInput = document.getElementById("motor-wifi-pass-input-" + id);
+            if (!ssidInput || !passwordInput) {
+                return;
+            }
+
+            const ssidValue = String(ssidInput.value || "").trim();
+            const passwordValue = String(passwordInput.value || "");
+            if (!ssidValue) {
+                updateMotorFeedback(id, "Enter WiFi SSID", "#c0392b");
+                return;
+            }
+
+            const message = JSON.stringify({
+                wifi_ssid: ssidValue,
+                wifi_password: passwordValue
+            });
+            updateMotorFeedback(id, "Sending WiFi settings...", "#ad7a00");
+
+            client.publish(motor.controlTopic, message, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    addLog("Motor " + id + " WiFi set failed: " + err.message);
+                    updateMotorFeedback(id, "WiFi set failed", "#c0392b");
+                    return;
+                }
+
+                trackTx(motor.controlTopic, message);
+                updateMotorFeedback(id, "WiFi settings sent", "#1f7d48");
+                addLog("Motor " + id + " secondary WiFi SSID -> " + ssidValue);
+            });
+        }
+
+        function clearWiFiConfigCommand(id) {
+            if (!isConnected || !client) {
+                updateMotorFeedback(id, "Not connected", "#c0392b");
+                return;
+            }
+
+            const motor = motors.find(function(m) { return m.id === id; });
+            if (!motor) {
+                return;
+            }
+
+            const message = JSON.stringify({ wifi_clear_secondary: true });
+            updateMotorFeedback(id, "Clearing WiFi 2...", "#ad7a00");
+
+            client.publish(motor.controlTopic, message, { qos: 1, retain: false }, function(err) {
+                if (err) {
+                    addLog("Motor " + id + " WiFi clear failed: " + err.message);
+                    updateMotorFeedback(id, "WiFi clear failed", "#c0392b");
+                    return;
+                }
+
+                const ssidInput = document.getElementById("motor-wifi-ssid-input-" + id);
+                const passwordInput = document.getElementById("motor-wifi-pass-input-" + id);
+                if (ssidInput) {
+                    ssidInput.value = "";
+                }
+                if (passwordInput) {
+                    passwordInput.value = "";
+                }
+
+                trackTx(motor.controlTopic, message);
+                updateMotorFeedback(id, "WiFi 2 cleared", "#1f7d48");
+                addLog("Motor " + id + " secondary WiFi cleared");
+            });
+        }
+
         function setDeviceState(id, online) {
             const motor = motors.find(function(m) { return m.id === id; });
             if (!motor) {
@@ -4029,13 +3702,9 @@
 
             if (previous !== next) {
                 addLog("controller-" + motor.id3 + " motor " + id + " " + (next ? "connected" : "disconnected"));
-                if (next) {
-                    autoSyncScheduleToOnlineDevices("controller-" + motor.id3 + " online");
-                }
             }
 
             renderMotorCard(motor);
-            reorderMotorGridByNumber();
         }
 
         function markDeviceSeen(id) {
@@ -4054,11 +3723,31 @@
         }
 
         function evaluateDeviceTimeouts() {
+            if (isNameEditorInputActive()) {
+                return;
+            }
+
             const now = Date.now();
             motors.forEach(function(motor) {
                 if (motor.deviceOnline && motor.lastSeenMs > 0 && (now - motor.lastSeenMs > DEVICE_OFFLINE_MS)) {
                     setDeviceState(motor.id, false);
                 }
+            });
+        }
+
+        function updateRuntimeTick() {
+            motors.forEach(function(motor) {
+                if (!motor || motor.runtimeStartMs === null) {
+                    return;
+                }
+
+                const runtimeText = document.getElementById("motor-runtime-" + motor.id);
+                if (!runtimeText) {
+                    return;
+                }
+
+                const runtimeNow = motor.runtimeSeconds + Math.floor((Date.now() - motor.runtimeStartMs) / 1000);
+                runtimeText.textContent = "RUNNING TIME: " + formatRuntime(runtimeNow);
             });
         }
 
@@ -4100,11 +3789,6 @@
                     addLog("Motor " + id + " command failed: " + err.message);
                     updateMotorFeedback(id, "Send failed", "#c0392b");
                     return;
-                }
-
-                if (turnOn && motor.mode === "MANUAL") {
-                    motor.manualTimerDurationSec = Number(motor.manualDurationMinutes || 20) * 60;
-                    renderMotorCard(motor);
                 }
 
                 trackTx(motor.controlTopic, command);
@@ -4165,7 +3849,6 @@
 
         function initMotorGrid() {
             const grid = document.getElementById("motorGrid");
-            const scrollPosition = captureScrollPosition();
             let html = "";
 
             motors.forEach(function(motor) {
@@ -4182,34 +3865,30 @@
                 html += "<div class=\"status-mini-row\"><div id=\"motor-relay-name-" + motor.id + "\">" + motor.relayName + "</div><div class=\"motor-status-chip\" id=\"motor-status-chip-" + motor.id + "\">STOPPED</div></div>";
                 html += "<div class=\"mini-title\" id=\"motor-runtime-" + motor.id + "\">RUNNING TIME: 00:00:00</div>";
                 html += "<div class=\"name-edit-grid\" id=\"name-edit-grid-" + motor.id + "\">";
-                html += "<input class=\"name-edit-input\" id=\"motor-name-input-" + motor.id + "\" type=\"text\" placeholder=\"Motor Name\">";
-                html += "<input class=\"name-edit-input\" id=\"motor-pass-input-" + motor.id + "\" type=\"password\" placeholder=\"Password\">";
+                html += "<input class=\"name-edit-input\" id=\"motor-name-input-" + motor.id + "\" type=\"text\" placeholder=\"Motor Name\" onkeydown=\"if(event.key==='Enter'){saveMotorLabels(" + motor.id + ")}\">";
+                html += "<input class=\"name-edit-input\" id=\"motor-pass-input-" + motor.id + "\" type=\"password\" placeholder=\"Password (1234)\" onkeydown=\"if(event.key==='Enter'){saveMotorLabels(" + motor.id + ")}\">";
                 html += "<button class=\"name-save-btn\" onclick=\"saveMotorLabels(" + motor.id + ")\">Save</button>";
+                html += "<input class=\"name-edit-input\" id=\"motor-wifi-ssid-input-" + motor.id + "\" type=\"text\" placeholder=\"WiFi 2 SSID\">";
+                html += "<input class=\"name-edit-input\" id=\"motor-wifi-pass-input-" + motor.id + "\" type=\"password\" placeholder=\"WiFi 2 Password\">";
+                html += "<button class=\"name-save-btn\" onclick=\"sendWiFiConfigCommand(" + motor.id + ")\">Set WiFi</button>";
+                html += "<button class=\"name-save-btn\" onclick=\"clearWiFiConfigCommand(" + motor.id + ")\">Clear WiFi</button>";
                 html += "</div>";
                 html += "<div class=\"mini-title\">ON/OFF CONTROL</div>";
                 html += "<div class=\"motor-actions\">";
                 html += "<button class=\"motor-btn motor-btn-mode\" id=\"motor-btn-mode-" + motor.id + "\" onclick=\"sendModeCommand(" + motor.id + ", this.textContent !== 'MANUAL')\">AUTO</button>";
-                html += "<div class=\"manual-duration-picker\">";
-                html += "<button class=\"manual-duration-trigger\" type=\"button\" id=\"motor-manual-duration-trigger-" + motor.id + "\" onclick=\"toggleManualDurationMenu(" + motor.id + ")\">" + formatManualDurationLabel(motor.manualDurationMinutes) + "</button>";
-                html += "<div class=\"manual-duration-menu\" id=\"motor-manual-duration-menu-" + motor.id + "\">";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 10)\">Manual ON 10m</button>";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 20)\">Manual ON 20m</button>";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 40)\">Manual ON 40m</button>";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 60)\">Manual ON 1h</button>";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 120)\">Manual ON 2h</button>";
-                html += "<button class=\"manual-duration-option\" type=\"button\" onclick=\"selectManualDuration(" + motor.id + ", 180)\">Manual ON 3h</button>";
-                html += "</div>";
-                html += "</div>";
+                html += "<select class=\"manual-timer-select\" id=\"motor-manual-duration-" + motor.id + "\"><option value=\"10\">Manual ON 10m</option><option value=\"20\" selected>Manual ON 20m</option><option value=\"40\">Manual ON 40m</option><option value=\"60\">Manual ON 1h</option><option value=\"120\">Manual ON 2h</option><option value=\"180\">Manual ON 3h</option></select>";
                 html += "<button class=\"motor-btn motor-btn-on\" id=\"motor-btn-on-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", true)\">ON</button>";
                 html += "<button class=\"motor-btn motor-btn-off\" id=\"motor-btn-off-" + motor.id + "\" onclick=\"sendMotorCommand(" + motor.id + ", false)\">OFF</button>";
+                html += "<button class=\"fault-ignore-btn\" id=\"motor-dashboard-alarm-btn-" + motor.id + "\" onclick=\"toggleDashboardAlarmEnabled(" + motor.id + ")\">D-ALARM ON</button>";
                 html += "<div class=\"manual-timer-label\" id=\"motor-manual-timer-label-" + motor.id + "\">TIMER INACTIVE</div>";
+                html += "<div class=\"e-alarm-time-label\" id=\"motor-ealarm-time-" + motor.id + "\">E ALARM ON TIME: --</div>";
                 html += "</div>";
                 html += "</div>";
                 html += "<div class=\"motor-right-params\">";
                 html += "<div class=\"mini-title\">PARAMETERS</div>";
                 html += "<div class=\"motor-param-list\">";
                 html += "<div class=\"param-values-row\">";
-                html += "<div class=\"param-value-pill voltage\"><div class=\"voltage-main\"><div class=\"voltage-top-row\"><div class=\"set-value-chip\" id=\"motor-phase-sequence-" + motor.id + "\"><span class=\"set-chip-label\">PHASE SEQUENCE</span>&nbsp;<span class=\"set-chip-value phase-unknown\">UNKNOWN</span></div><div class=\"set-value-chip\" id=\"motor-voltage-alert-" + motor.id + "\"><span class=\"set-chip-label\">LOW VOLTAGE SET VALUE</span>&nbsp;<span class=\"set-chip-value lowv\">&lt; 150V</span></div><div class=\"set-value-chip\" id=\"motor-unbalance-alert-" + motor.id + "\"><span class=\"set-chip-label\">UNBALANCE VOLTAGE FAULT</span>&nbsp;<span class=\"set-chip-value lowv\">&gt; 15%</span></div></div><div class=\"live-reading-label\">LIVE VOLTAGE</div><div class=\"param-value voltage-live-value live-reading-value\" id=\"motor-voltage-" + motor.id + "\">--</div></div><div class=\"voltage-controls\"><div class=\"lowv-control-inline\"><span class=\"param-label\">LOW VOLTAGE SET VALUE</span><input class=\"lowv-input\" id=\"motor-lowv-input-" + motor.id + "\" type=\"number\" min=\"100\" max=\"300\" step=\"1\" value=\"150\"><button class=\"phase-set-btn\" onclick=\"sendLowVoltageThresholdCommand(" + motor.id + ")\">Set</button></div><div class=\"lowv-control-inline\"><span class=\"param-label\">UNBALANCE VOLTAGE FAULT</span><input class=\"lowv-input\" id=\"motor-unbalance-input-" + motor.id + "\" type=\"number\" min=\"1\" max=\"50\" step=\"1\" value=\"15\"><button class=\"phase-set-btn\" onclick=\"sendUnbalanceVoltageThresholdCommand(" + motor.id + ")\">Set</button></div><button class=\"protection-toggle-btn\" id=\"motor-voltage-protect-btn-" + motor.id + "\" onclick=\"toggleVoltageProtection(" + motor.id + ")\">V-PROTECT ON</button><button class=\"fault-ignore-btn\" id=\"motor-ignore-voltage-" + motor.id + "\" onclick=\"toggleFaultIgnore(" + motor.id + ", 'voltage')\">IGN-V OFF</button></div></div>";
+                html += "<div class=\"param-value-pill voltage\"><div class=\"voltage-main\"><div class=\"voltage-top-row\"><div class=\"set-value-chip\" id=\"motor-phase-sequence-" + motor.id + "\"><span class=\"set-chip-label\">PHASE SEQUENCE</span>&nbsp;<span class=\"set-chip-value phase-unknown\">UNKNOWN</span></div><div class=\"set-value-chip\" id=\"motor-voltage-alert-" + motor.id + "\"><span class=\"set-chip-label\">LOW VOLTAGE SET VALUE</span>&nbsp;<span class=\"set-chip-value lowv\">&lt; 150V</span></div><div class=\"set-value-chip\" id=\"motor-unbalance-alert-" + motor.id + "\"><span class=\"set-chip-label\">UNBALANCE VOLTAGE FAULT</span>&nbsp;<span class=\"set-chip-value lowv\">&gt; 15%</span></div></div><div class=\"live-reading-label\">LIVE VOLTAGE</div><div class=\"param-value voltage-live-value live-reading-value\" id=\"motor-voltage-" + motor.id + "\">--</div></div><div class=\"voltage-controls\"><div class=\"phase-control-inline\"><select class=\"phase-select\" id=\"motor-phase-select-" + motor.id + "\"><option value=\"RYB\">RYB</option><option value=\"YBR\">YBR</option><option value=\"BRY\">BRY</option></select><button class=\"phase-set-btn\" onclick=\"sendPhaseSequenceCommand(" + motor.id + ")\">Set</button></div><div class=\"lowv-control-inline\"><span class=\"param-label\">LOW VOLTAGE SET VALUE</span><input class=\"lowv-input\" id=\"motor-lowv-input-" + motor.id + "\" type=\"number\" min=\"100\" max=\"300\" step=\"1\" value=\"150\"><button class=\"phase-set-btn\" onclick=\"sendLowVoltageThresholdCommand(" + motor.id + ")\">Set</button></div><div class=\"lowv-control-inline\"><span class=\"param-label\">UNBALANCE VOLTAGE FAULT</span><input class=\"lowv-input\" id=\"motor-unbalance-input-" + motor.id + "\" type=\"number\" min=\"1\" max=\"50\" step=\"1\" value=\"15\"><button class=\"phase-set-btn\" onclick=\"sendUnbalanceVoltageThresholdCommand(" + motor.id + ")\">Set</button></div><button class=\"protection-toggle-btn\" id=\"motor-voltage-protect-btn-" + motor.id + "\" onclick=\"toggleVoltageProtection(" + motor.id + ")\">V-PROTECT ON</button><button class=\"fault-ignore-btn\" id=\"motor-ignore-voltage-" + motor.id + "\" onclick=\"toggleFaultIgnore(" + motor.id + ", 'voltage')\">IGN-V OFF</button></div></div>";
                 html += "<div class=\"param-value-pill last4\"><div class=\"last4-inline\" id=\"motor-last4-inline-" + motor.id + "\"></div></div>";
                 html += "<div class=\"param-value-pill current\"><div class=\"current-main\"><div class=\"current-top-row\"><div class=\"set-value-chip\" id=\"motor-dryrun-chip-" + motor.id + "\"><span class=\"set-chip-label\">DRY RUN SET</span>&nbsp;<span class=\"set-chip-value dry\">1.0A</span></div><div class=\"set-value-chip\" id=\"motor-overload-chip-" + motor.id + "\"><span class=\"set-chip-label\">OVER LOAD SET</span>&nbsp;<span class=\"set-chip-value overload\">12.0A</span></div></div><div class=\"live-reading-label\">LIVE CURRENT</div><div class=\"param-value live-reading-value\" id=\"motor-current-" + motor.id + "\">--</div></div><div class=\"current-controls\"><div class=\"current-control-inline\"><span class=\"param-label\">DR</span><input class=\"current-input\" id=\"motor-dryrun-input-" + motor.id + "\" type=\"number\" min=\"0.1\" max=\"20\" step=\"0.1\" value=\"1.0\"><span class=\"param-label\">OL</span><input class=\"current-input\" id=\"motor-overload-input-" + motor.id + "\" type=\"number\" min=\"0.5\" max=\"40\" step=\"0.1\" value=\"12.0\"><button class=\"phase-set-btn\" onclick=\"sendCurrentProtectionSetCommand(" + motor.id + ")\">Set</button></div><button class=\"protection-toggle-btn\" id=\"motor-current-protect-btn-" + motor.id + "\" onclick=\"toggleCurrentProtection(" + motor.id + ")\">C-PROTECT ON</button><button class=\"fault-ignore-btn\" id=\"motor-ignore-current-" + motor.id + "\" onclick=\"toggleFaultIgnore(" + motor.id + ", 'current')\">IGN-C OFF</button></div></div>";
                 html += "</div>";
@@ -4262,7 +3941,6 @@
             });
             renderAllMotors();
             setConnectionStatus(false);
-            restoreScrollPosition(scrollPosition);
         }
 
         function updateStats(data) {
@@ -4321,22 +3999,18 @@
             powerChart.update("none");
         }
 
-        function handleAllData(rawPayload, topic, shouldMarkOnline) {
+        function handleAllData(rawPayload, topic) {
             const payload = getPayloadObject(rawPayload);
             if (!payload) {
                 return;
             }
-
-            const allowOnlineMark = shouldMarkOnline !== false;
 
             updateStats(payload);
             pushChartPoint(payload);
 
             const moduleId = resolveModuleId(payload, topic);
             if (moduleId >= 1 && moduleId <= MOTOR_COUNT) {
-                if (allowOnlineMark) {
-                    markDeviceSeen(moduleId);
-                }
+                markDeviceSeen(moduleId);
                 let v = getNumericField(payload, ["voltage", "volt", "voltage_v", "v"]);
                 const vr = getNumericField(payload, ["voltage_r", "vr", "r_voltage"]);
                 const vy = getNumericField(payload, ["voltage_y", "vy", "y_voltage"]);
@@ -4398,18 +4072,13 @@
                 const manualTimerActive = typeof payload.manual_timer_active !== "undefined" ? payload.manual_timer_active : null;
                 const manualTimerRemainingSec = getNumericField(payload, ["manual_timer_remaining_sec"]);
                 const manualTimerDurationSec = getNumericField(payload, ["manual_timer_duration_sec"]);
-                const x1Raw = getNumericField(payload, ["x1", "x1_raw"]);
-                const x3Raw = getNumericField(payload, ["x3", "x3_raw"]);
-                const powerSupplyCut = (typeof payload.power_supply_cut !== "undefined")
-                    ? payload.power_supply_cut
-                    : (x3Raw !== null ? (x3Raw > X3_POWER_SUPPLY_CUT_THRESHOLD) : null);
                 const d27Status = typeof payload.d27_status !== "undefined"
                     ? payload.d27_status
                     : (typeof payload.io27_status !== "undefined"
                         ? payload.io27_status
                         : (typeof payload.relay27_on !== "undefined" ? payload.relay27_on : null));
 
-                setMotorParams(moduleId, v, c, p, vr, vy, vb, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec, x1Raw, x3Raw, powerSupplyCut);
+                setMotorParams(moduleId, v, c, p, vr, vy, vb, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec);
 
                 if (currentRawAdc !== null || currentAdcVoltage !== null) {
                     setMotorCurrentDebug(moduleId, currentRawAdc, currentAdcVoltage);
@@ -4438,6 +4107,13 @@
                     let latestReasonSource = (typeof payload.latest_reason !== "undefined" && String(payload.latest_reason).trim().length > 0)
                         ? String(payload.latest_reason)
                         : "status";
+
+                    if (typeof payload.alarm_state !== "undefined" && String(payload.alarm_state).trim().length > 0) {
+                        latestReasonSource = String(payload.alarm_state);
+                    } else if (typeof payload.alarm_active !== "undefined") {
+                        latestReasonSource = readBooleanField(payload.alarm_active) ? "E_ALARM_ON" : "E_ALARM_OFF";
+                    }
+
                     if (!resolvedState) {
                         if (dryRunActive === true) {
                             latestReasonSource = "DRY_RUN_TRIP";
@@ -4450,13 +4126,11 @@
             }
         }
 
-        function handleFeedbackTopic(topic, message, shouldMarkOnline) {
+        function handleFeedbackTopic(topic, message) {
             const parts = topic.split("/");
             if (parts.length < 4) {
                 return;
             }
-
-            const allowOnlineMark = shouldMarkOnline !== false;
 
             const parsedMessage = parseMaybeJsonText(message);
             if (parsedMessage) {
@@ -4472,9 +4146,7 @@
                 }
 
                 if (id >= 1 && id <= MOTOR_COUNT) {
-                    if (allowOnlineMark) {
-                        markDeviceSeen(id);
-                    }
+                    markDeviceSeen(id);
                     if (typeof payload.mode !== "undefined") {
                         setMotorMode(id, payload.mode, payload.mode_pin);
                     } else if (typeof payload.mode_auto !== "undefined") {
@@ -4502,13 +4174,8 @@
                             : "status";
                         if (typeof payload.alarm_state !== "undefined" && String(payload.alarm_state).trim().length > 0) {
                             latestReasonSource = String(payload.alarm_state);
-                        } else if (typeof payload.alarm_active !== "undefined" && readBooleanField(payload.alarm_active) && state) {
-                            latestReasonSource = "E_ALARM_ON";
-                        }
-                        if (typeof payload.alarm_state !== "undefined" && String(payload.alarm_state).trim().length > 0) {
-                            latestReasonSource = String(payload.alarm_state);
-                        } else if (typeof payload.alarm_active !== "undefined" && readBooleanField(payload.alarm_active) && state) {
-                            latestReasonSource = "E_ALARM_ON";
+                        } else if (typeof payload.alarm_active !== "undefined") {
+                            latestReasonSource = readBooleanField(payload.alarm_active) ? "E_ALARM_ON" : "E_ALARM_OFF";
                         }
                         if (!state) {
                             if (dryRunActive === true) {
@@ -4567,18 +4234,13 @@
                     const manualTimerActive = typeof payload.manual_timer_active !== "undefined" ? payload.manual_timer_active : null;
                     const manualTimerRemainingSec = getNumericField(payload, ["manual_timer_remaining_sec"]);
                     const manualTimerDurationSec = getNumericField(payload, ["manual_timer_duration_sec"]);
-                    const x1Raw = getNumericField(payload, ["x1", "x1_raw"]);
-                    const x3Raw = getNumericField(payload, ["x3", "x3_raw"]);
-                    const powerSupplyCut = (typeof payload.power_supply_cut !== "undefined")
-                        ? payload.power_supply_cut
-                        : (x3Raw !== null ? (x3Raw > X3_POWER_SUPPLY_CUT_THRESHOLD) : null);
                     const d27Status = typeof payload.d27_status !== "undefined"
                         ? payload.d27_status
                         : (typeof payload.io27_status !== "undefined"
                             ? payload.io27_status
                             : (typeof payload.relay27_on !== "undefined" ? payload.relay27_on : null));
-                    if (v !== null || c !== null || p !== null || vr !== null || vy !== null || vb !== null || phaseSequence !== null || phaseSequenceSet !== null || phaseSequenceSource !== null || lowVoltageThreshold !== null || lowVoltageActive !== null || unbalanceVoltageThresholdPercent !== null || unbalanceVoltageActive !== null || voltageProtectionEnabled !== null || currentProtectionEnabled !== null || ignoredFaultLowVoltage !== null || ignoredFaultUnbalanceVoltage !== null || ignoredFaultCurrent !== null || ignoredFaultPhase !== null || switchHistory !== null || dryRunSetA !== null || overloadSetA !== null || dryRunActive !== null || overloadActive !== null || motorRunningCurrent !== null || motorOnCurrentThresholdA !== null || manualTimerActive !== null || manualTimerRemainingSec !== null || manualTimerDurationSec !== null || x1Raw !== null || x3Raw !== null || powerSupplyCut !== null) {
-                        setMotorParams(id, v, c, p, vr, vy, vb, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec, x1Raw, x3Raw, powerSupplyCut);
+                    if (v !== null || c !== null || p !== null || vr !== null || vy !== null || vb !== null || phaseSequence !== null || phaseSequenceSet !== null || phaseSequenceSource !== null || lowVoltageThreshold !== null || lowVoltageActive !== null || unbalanceVoltageThresholdPercent !== null || unbalanceVoltageActive !== null || voltageProtectionEnabled !== null || currentProtectionEnabled !== null || ignoredFaultLowVoltage !== null || ignoredFaultUnbalanceVoltage !== null || ignoredFaultCurrent !== null || ignoredFaultPhase !== null || switchHistory !== null || dryRunSetA !== null || overloadSetA !== null || dryRunActive !== null || overloadActive !== null || motorRunningCurrent !== null || motorOnCurrentThresholdA !== null || manualTimerActive !== null || manualTimerRemainingSec !== null || manualTimerDurationSec !== null) {
+                        setMotorParams(id, v, c, p, vr, vy, vb, phaseSequence, phaseSequenceSet, phaseSequenceSource, lowVoltageThreshold, lowVoltageActive, unbalanceVoltageThresholdPercent, unbalanceVoltageActive, voltageProtectionEnabled, currentProtectionEnabled, ignoredFaultLowVoltage, ignoredFaultUnbalanceVoltage, ignoredFaultCurrent, ignoredFaultPhase, switchHistory, dryRunSetA, overloadSetA, dryRunActive, overloadActive, motorRunningCurrent, motorOnCurrentThresholdA, manualTimerActive, manualTimerRemainingSec, manualTimerDurationSec);
                     }
                     if (currentRawAdc !== null || currentAdcVoltage !== null) {
                         setMotorCurrentDebug(id, currentRawAdc, currentAdcVoltage);
@@ -4595,9 +4257,7 @@
                 if (!id || id < 1 || id > MOTOR_COUNT) {
                     return;
                 }
-                if (allowOnlineMark) {
-                    markDeviceSeen(id);
-                }
+                markDeviceSeen(id);
                 const normalized = String(message).trim().toUpperCase();
                 if (normalized === "ON" || normalized === "1" || normalized === "HIGH") {
                     updateMotorFeedback(id, "Status ON", "#1f7d48");
@@ -4618,33 +4278,41 @@
 
             client.on("connect", function() {
                 setConnectionStatus(true);
+                client.subscribe(topicPrefix + "/sensors/all");
                 client.subscribe(topicPrefix + "/motor/+/status");
                 client.subscribe(topicPrefix + "/motor/+/telemetry");
-                addLog("MQTT connected. Subscribed to relite2 motor status/telemetry only.");
+                addLog("MQTT connected. Subscribed for 30 motor control/status.");
             });
 
-            client.on("message", function(topic, payload, packet) {
+            client.on("message", function(topic, payload) {
                 const msg = payload.toString();
-                const isRetainedMessage = !!(packet && packet.retain);
-                const shouldMarkOnline = !isRetainedMessage;
                 trackRx(topic, msg);
 
-                // Ignore shared sensors/all feed in Relite_2 to prevent cross-dashboard data mixing.
+                if (isUiEditLocked()) {
+                    return;
+                }
+
                 if (topic === topicPrefix + "/sensors/all") {
+                    try {
+                        const data = JSON.parse(msg);
+                        handleAllData(data, topic);
+                    } catch (err) {
+                        addLog("JSON parse error on sensors/all: " + err.message);
+                    }
                     return;
                 }
 
                 if (topic.startsWith(topicPrefix + "/motor/") && topic.endsWith("/telemetry")) {
                     try {
                         const data = JSON.parse(msg);
-                        handleAllData(data, topic, shouldMarkOnline);
+                        handleAllData(data, topic);
                     } catch (err) {
                         addLog("JSON parse error on motor telemetry: " + err.message);
                     }
                     return;
                 }
 
-                handleFeedbackTopic(topic, msg, shouldMarkOnline);
+                handleFeedbackTopic(topic, msg);
             });
 
             client.on("close", function() {
@@ -4728,61 +4396,21 @@
 
         window.onload = function() {
             initMotorGrid();
+            bindUiEditLockEvents();
             renderScheduleEditor();
-            renderDashboardAlarmSettingsEditor();
-
-            const senderIds = [
-                "dashAlarmEnabled",
-                "dashAlarmOnRetryCount",
-                "dashAlarmOffRetryCount",
-                "dashAlarmRetryGap"
-            ];
-            senderIds.forEach(function(id) {
-                const el = document.getElementById(id);
-                if (!el) {
-                    return;
-                }
-                el.addEventListener("change", function() {
-                    persistDashboardAlarmSettingsFromEditor(false);
-                });
-                el.addEventListener("input", function() {
-                    persistDashboardAlarmSettingsFromEditor(true);
-                });
-            });
-
             buildCharts();
             connectMqtt();
-            document.addEventListener("click", function(event) {
-                const target = event.target;
-                if (target && target.closest && target.closest(".manual-duration-picker")) {
-                    return;
-                }
-                closeAllManualDurationMenus();
-            });
             setInterval(function() {
-                if (document.hidden) {
+                if (isUiEditLocked()) {
                     return;
                 }
-                if (isScheduleEditorBusy()) {
-                    return;
-                }
-                renderAllMotors();
-            }, 2000);
+                updateRuntimeTick();
+            }, 1000);
             setInterval(function() {
                 evaluateDeviceTimeouts();
             }, 1000);
-            setInterval(function() {
-                checkAndTriggerDashboardAlarm();
-            }, 15000);
-            setInterval(function() {
-                processDashboardAlarmJobs();
-            }, 5000);
             addLog("Motor Controller Device - Relite 2 started.");
-            addLog("Local alarm mode active: schedule saves locally and syncs to ESP.");
         };
     </script>
 </body>
 </html>
-
-
-
