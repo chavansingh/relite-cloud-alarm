@@ -4346,7 +4346,6 @@
 
             client.on("connect", function() {
                 setConnectionStatus(true);
-                client.subscribe(topicPrefix + "/sensors/all");
                 client.subscribe(topicPrefix + "/motor/+/status");
                 client.subscribe(topicPrefix + "/motor/+/telemetry");
                 addLog("MQTT connected. Subscribed for 30 motor control/status.");
@@ -4357,16 +4356,6 @@
                 trackRx(topic, msg);
 
                 if (isUiEditLocked()) {
-                    return;
-                }
-
-                if (topic === topicPrefix + "/sensors/all") {
-                    try {
-                        const data = JSON.parse(msg);
-                        handleAllData(data, topic);
-                    } catch (err) {
-                        addLog("JSON parse error on sensors/all: " + err.message);
-                    }
                     return;
                 }
 
