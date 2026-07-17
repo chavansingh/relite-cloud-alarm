@@ -1845,7 +1845,8 @@
         function queueDashboardAlarmJob(command, sourceLabel) {
             const settings = loadDashboardAlarmSettings();
             const targetMotorId = getScheduleTargetMotorId();
-            const retryCount = command === "OFF" ? settings.offRetryCount : settings.onRetryCount;
+            const isAlarmOn = command === "ALARM_ON";
+            const retryCount = isAlarmOn ? settings.onRetryCount : settings.offRetryCount;
             const gapMs = settings.retryGapMinutes * 60 * 1000;
             const initialDelayMs = 60 * 1000;
             const nowMs = Date.now();
@@ -1905,9 +1906,9 @@
                     }
 
                     trackTx(job.topic, job.command);
-                    if (job.command === "ON") {
+                    if (job.command === "ALARM_ON") {
                         setMotorAlarmState(job.targetMotorId, true);
-                    } else if (job.command === "OFF") {
+                    } else if (job.command === "ALARM_OFF") {
                         setMotorAlarmState(job.targetMotorId, false);
                     }
                     addLog("Dashboard alarm " + job.sourceLabel + " -> " + job.command + " attempt " + nextAttemptNumber + "/" + job.retryCount);
@@ -1946,7 +1947,7 @@
                     const onKey = dayKey + "|" + index + "|ON|" + hh + ":" + mm;
                     if (!dashboardAlarmState.lastTriggerKeyMap["ON_" + index] || dashboardAlarmState.lastTriggerKeyMap["ON_" + index] !== onKey) {
                         dashboardAlarmState.lastTriggerKeyMap["ON_" + index] = onKey;
-                        queueDashboardAlarmJob("ON", "alarm " + (index + 1) + " ON");
+                        queueDashboardAlarmJob("ALARM_ON", "alarm " + (index + 1) + " ON");
                     }
                 }
 
@@ -1954,7 +1955,7 @@
                     const offKey = dayKey + "|" + index + "|OFF|" + hh + ":" + mm;
                     if (!dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] || dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] !== offKey) {
                         dashboardAlarmState.lastTriggerKeyMap["OFF_" + index] = offKey;
-                        queueDashboardAlarmJob("OFF", "alarm " + (index + 1) + " OFF");
+                        queueDashboardAlarmJob("ALARM_OFF", "alarm " + (index + 1) + " OFF");
                     }
                 }
             });
