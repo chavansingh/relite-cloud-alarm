@@ -1914,14 +1914,18 @@ bool isAutoStartBlockedByProtection(String& reason) {
 
 void applyAutoModeLogic() {
   const bool alarmStartRequested = alarmWindowStartPending || alarmWindowActive;
-  if (manualTimedOnActive || (!autoModeEnabled && !alarmStartRequested) || !modeDecisionReady) {
+  if (manualTimedOnActive || (!autoModeEnabled && !alarmStartRequested)) {
     return;
   }
 
   static String lastAutoStartBlockReason = "";
 
   const unsigned long now = millis();
-  if (now - bootMs < AUTO_START_DELAY_MS) {
+  if (!alarmStartRequested && !modeDecisionReady) {
+    return;
+  }
+
+  if (!alarmStartRequested && (now - bootMs < AUTO_START_DELAY_MS)) {
     return;
   }
 
@@ -1984,7 +1988,7 @@ void applyAutoModeLogic() {
     autoRestartClearSinceMs = 0;
     autoRestartFaultReason = "";
     pendingPublishStatus = true;
-    Serial.println("[AUTO] Voltage OK after 30s average, starter ON");
+    Serial.println(alarmStartRequested ? "[ALARM] Starter ON from ESP alarm window" : "[AUTO] Voltage OK after 30s average, starter ON");
     lastAutoStartBlockReason = "";
   }
 }
