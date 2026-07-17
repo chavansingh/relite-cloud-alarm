@@ -1149,14 +1149,14 @@ bool parseOnCommand(const String& msg) {
   String value = msg;
   value.trim();
   value.toUpperCase();
-  return (value == "ON" || value == "1" || value == "HIGH" || value == "START");
+  return (value == "ON" || value == "1" || value == "HIGH" || value == "START" || value == "ALARM_ON");
 }
 
 bool parseOffCommand(const String& msg) {
   String value = msg;
   value.trim();
   value.toUpperCase();
-  return (value == "OFF" || value == "0" || value == "LOW" || value == "STOP");
+  return (value == "OFF" || value == "0" || value == "LOW" || value == "STOP" || value == "ALARM_OFF");
 }
 
 void writeRelayPin(int pin, bool turnOn) {
@@ -2537,7 +2537,8 @@ void handleControlMessage(const String& msg) {
       return;
     }
     clearManualTimedOnState(true);
-    startStarterOnSequenceWithReason("MANUAL_ON_CMD");
+    const String upperMsg = String(msg).toUpperCase();
+    startStarterOnSequenceWithReason(upperMsg.indexOf("ALARM_ON") >= 0 ? "ALARM_ON" : "MANUAL_ON_CMD");
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER ON sequence: D12(30s) -> D14(30s), D27 latched ON");
     return;
@@ -2555,7 +2556,8 @@ void handleControlMessage(const String& msg) {
     autoRestartClearSinceMs = 0;
     autoRestartFaultReason = "";
     saveAlarmWindowStateToPreferences();
-    stopStarterWithReason("MANUAL_OFF_CMD");
+    const String upperMsg = String(msg).toUpperCase();
+    stopStarterWithReason(upperMsg.indexOf("ALARM_OFF") >= 0 ? "ALARM_OFF" : "MANUAL_OFF_CMD");
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER OFF: D12/D14/D27 OFF, alarm window paused until current schedule window ends");
     return;
