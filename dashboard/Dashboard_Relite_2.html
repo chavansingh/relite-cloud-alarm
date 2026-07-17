@@ -4351,9 +4351,14 @@
                 addLog("MQTT connected. Subscribed for 30 motor control/status.");
             });
 
-            client.on("message", function(topic, payload) {
+            client.on("message", function(topic, payload, packet) {
                 const msg = payload.toString();
                 trackRx(topic, msg);
+
+                const isRetained = !!(packet && packet.retain);
+                if (isRetained && topic.startsWith(topicPrefix + "/motor/")) {
+                    return;
+                }
 
                 if (isUiEditLocked()) {
                     return;
