@@ -1884,6 +1884,7 @@
 
             schedule.forEach(function(entry, index) {
                 const durationValue = clampScheduleDurationMinutes(Number(entry.duration_min));
+                const offTime = buildScheduleEndFromDuration(entry.on_hour, entry.on_minute, durationValue);
                 const row = document.createElement("div");
                 row.className = "schedule-row";
                 row.innerHTML = "<label>Alarm " + (index + 1) + "</label>" +
@@ -1896,7 +1897,7 @@
                         "</select>" +
                         "<label style=\"margin-left:auto;\"><input type=\"checkbox\" id=\"schedule-enabled-" + index + "\" " + (entry.enabled ? "checked" : "") + "> Enabled</label>" +
                     "</div>" +
-                    "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / " + formatDurationLabel(durationValue)) : "Disabled") + "</div>";
+                    "<div id=\"schedule-preview-" + index + "\" style=\"font-size:12px;color:#35506f;text-align:right;\">" + (entry.enabled ? ("ON " + String(entry.on_hour).padStart(2, "0") + ":" + String(entry.on_minute).padStart(2, "0") + " / OFF " + String(offTime.off_hour).padStart(2, "0") + ":" + String(offTime.off_minute).padStart(2, "0") + " / " + formatDurationLabel(durationValue)) : "Disabled") + "</div>";
                 scheduleGrid.appendChild(row);
             });
         }

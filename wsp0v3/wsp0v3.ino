@@ -116,7 +116,7 @@ const unsigned long STATUS_HEARTBEAT_MS = 15000;
 const unsigned long CD4052_TEST_PRINT_MS = 3000;
 const unsigned long AUTO_START_DELAY_MS = 30000;
 const unsigned long AUTO_RESTART_AFTER_CLEAR_MS = 20000;
-const unsigned long SCHEDULE_CHECK_INTERVAL_MS = 30000;
+const unsigned long SCHEDULE_CHECK_INTERVAL_MS = 1000;
 const unsigned long ALARM_STATE_PERSIST_INTERVAL_MS = 60000;
 const unsigned long NTP_RESYNC_INTERVAL_MS = 3600000; // 1 hour
 const unsigned long NTP_RETRY_WHEN_UNSYNCED_MS = 30000;
@@ -190,6 +190,7 @@ unsigned long alarmCompensationLastTickMs = 0;
 unsigned long lastAlarmStatePersistMs = 0;
 uint32_t alarmWindowLastEpoch = 0;
 bool alarmWindowRecoveryPending = false;
+String pendingAlarmStateReason = "";
 bool dryRunAutoRestartUsed = false;
 bool overloadAutoRestartUsed = false;
 bool dryRunAutoRestartLocked = false;
@@ -312,6 +313,26 @@ uint32_t getManualTimedOnDurationFromMinutes(uint32_t minutes) {
     return minutes * 60UL;
   }
   return 0;
+}
+
+uint16_t getScheduleDurationMinutes(const ScheduleEntry& entry) {
+  const int onTotal = ((int)entry.onHour * 60) + (int)entry.onMinute;
+  const int offTotal = ((int)entry.offHour * 60) + (int)entry.offMinute;
+  int diff = (offTotal - onTotal + (24 * 60)) % (24 * 60);
+  if (diff <= 0) {
+    diff = 60;
+  }
+  return (uint16_t)diff;
+}
+
+void applyScheduleDurationToEntry(ScheduleEntry& entry, uint16_t durationMinutes) {
+  if (durationMinutes == 0) {
+    durationMinutes = 60;
+  }
+  const int onTotal = ((int)entry.onHour * 60) + (int)entry.onMinute;
+  const int offTotal = (onTotal + (int)durationMinutes) % (24 * 60);
+  entry.offHour = (uint8_t)(offTotal / 60);
+  entry.offMinute = (uint8_t)(offTotal % 60);
 }
 
 void saveManualTimedOnToPreferences() {
@@ -1235,11 +1256,17 @@ void stopStarter() {
 
 void startStarterOnSequenceWithReason(const String& reason) {
   pendingSwitchEventReason = reason;
+  if (reason == "E_ALARM_ON" || reason == "D_ALARM_ON") {
+    pendingAlarmStateReason = "E_ALARM_ON";
+  }
   startStarterOnSequence();
 }
 
 void stopStarterWithReason(const String& reason) {
   pendingSwitchEventReason = reason;
+  if (reason == "E_ALARM_OFF" || reason == "D_ALARM_OFF") {
+    pendingAlarmStateReason = "E_ALARM_OFF";
+  }
   stopStarter();
 }
 
@@ -1280,6 +1307,7 @@ bool saveScheduleToPreferences() {
     entry["enabled"] = scheduleEntries[i].enabled;
     entry["on_hour"] = scheduleEntries[i].onHour;
     entry["on_minute"] = scheduleEntries[i].onMinute;
+    entry["duration_min"] = getScheduleDurationMinutes(scheduleEntries[i]);
     entry["off_hour"] = scheduleEntries[i].offHour;
     entry["off_minute"] = scheduleEntries[i].offMinute;
   }
@@ -1767,8 +1795,16 @@ void loadScheduleFromPreferences() {
     scheduleEntries[index].enabled = item["enabled"] | false;
     scheduleEntries[index].onHour = constrain(item["on_hour"] | scheduleEntries[index].onHour, 0, 23);
     scheduleEntries[index].onMinute = constrain(item["on_minute"] | scheduleEntries[index].onMinute, 0, 59);
-    scheduleEntries[index].offHour = constrain(item["off_hour"] | scheduleEntries[index].offHour, 0, 23);
-    scheduleEntries[index].offMinute = constrain(item["off_minute"] | scheduleEntries[index].offMinute, 0, 59);
+    if (item.containsKey("off_hour") || item.containsKey("off_minute")) {
+      scheduleEntries[index].offHour = constrain(item["off_hour"] | scheduleEntries[index].offHour, 0, 23);
+      scheduleEntries[index].offMinute = constrain(item["off_minute"] | scheduleEntries[index].offMinute, 0, 59);
+    } else if (item.containsKey("duration_min")) {
+      uint16_t durationMin = (uint16_t)(item["duration_min"] | 60);
+      if (durationMin == 0) {
+        durationMin = 60;
+      }
+      applyScheduleDurationToEntry(scheduleEntries[index], durationMin);
+    }
     scheduleEntries[index].lastTriggeredDayOfYearOn = -1;
     scheduleEntries[index].lastTriggeredDayOfYearOff = -1;
     index++;
@@ -1847,6 +1883,7 @@ void applyScheduleLogic() {
   if (shouldBeActive && !alarmWindowActive) {
     alarmWindowActive = true;
     alarmWindowStartPending = !relayStateOn;
+    pendingAlarmStateReason = "E_ALARM_ON";
     autoAlarmLatched = false;
     autoRestartAfterFault = false;
     autoRestartClearSinceMs = 0;
@@ -1860,6 +1897,7 @@ void applyScheduleLogic() {
   if (!shouldBeActive && alarmWindowActive) {
     alarmWindowActive = false;
     alarmWindowStartPending = false;
+    pendingAlarmStateReason = "E_ALARM_OFF";
     autoAlarmLatched = false;
     autoRestartAfterFault = false;
     autoRestartClearSinceMs = 0;
@@ -2214,8 +2252,12 @@ void publishStatus(bool retained) {
   StaticJsonDocument<STATUS_JSON_CAPACITY> doc;
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : stateText;
-  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
-  const String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : (autoAlarmLatched ? String("E_ALARM_OFF") : String(""));
+  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending || autoAlarmLatched || autoRestartAfterFault;
+  String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : String("");
+  if (!alarmStateActive && pendingAlarmStateReason.length() > 0) {
+    alarmStateText = pendingAlarmStateReason;
+    pendingAlarmStateReason = "";
+  }
   doc["status"] = stateText;
   doc["state"] = stateText;
   doc["status_text"] = statusText;
@@ -2314,6 +2356,7 @@ void publishStatus(bool retained) {
     entry["enabled"] = scheduleEntries[i].enabled;
     entry["on_hour"] = scheduleEntries[i].onHour;
     entry["on_minute"] = scheduleEntries[i].onMinute;
+    entry["duration_min"] = getScheduleDurationMinutes(scheduleEntries[i]);
     entry["off_hour"] = scheduleEntries[i].offHour;
     entry["off_minute"] = scheduleEntries[i].offMinute;
   }
@@ -2385,8 +2428,12 @@ void publishTelemetry() {
   updateSwitchHistoryFromState(d27On, nowEpoch);
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : (d27On ? "ON" : "OFF");
-  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
-  const String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : (autoAlarmLatched ? String("E_ALARM_OFF") : String(""));
+  const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending || autoAlarmLatched || autoRestartAfterFault;
+  String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : String("");
+  if (!alarmStateActive && pendingAlarmStateReason.length() > 0) {
+    alarmStateText = pendingAlarmStateReason;
+    pendingAlarmStateReason = "";
+  }
 
   // Keep telemetry compact to reduce publish failures on unstable links.
   StaticJsonDocument<TELEMETRY_JSON_CAPACITY> doc;
@@ -2554,7 +2601,7 @@ void handleControlMessage(const String& msg) {
     clearManualTimedOnState(true);
     String upperMsg = String(msg);
     upperMsg.toUpperCase();
-    startStarterOnSequenceWithReason(
+    startStarterOnSequenceWithReason(     
       upperMsg.indexOf("D_ALARM_ON") >= 0 ? "D_ALARM_ON"
       : (upperMsg.indexOf("E_ALARM_ON") >= 0 || upperMsg.indexOf("ALARM_ON") >= 0 ? "E_ALARM_ON" : "MANUAL_ON_CMD")
     );
@@ -2690,8 +2737,16 @@ bool parseScheduleCommand(const JsonDocument& doc) {
     scheduleEntries[index].enabled = item["enabled"] | false;
     scheduleEntries[index].onHour = constrain(item["on_hour"] | scheduleEntries[index].onHour, 0, 23);
     scheduleEntries[index].onMinute = constrain(item["on_minute"] | scheduleEntries[index].onMinute, 0, 59);
-    scheduleEntries[index].offHour = constrain(item["off_hour"] | scheduleEntries[index].offHour, 0, 23);
-    scheduleEntries[index].offMinute = constrain(item["off_minute"] | scheduleEntries[index].offMinute, 0, 59);
+    if (item.containsKey("off_hour") || item.containsKey("off_minute")) {
+      scheduleEntries[index].offHour = constrain(item["off_hour"] | scheduleEntries[index].offHour, 0, 23);
+      scheduleEntries[index].offMinute = constrain(item["off_minute"] | scheduleEntries[index].offMinute, 0, 59);
+    } else if (item.containsKey("duration_min")) {
+      uint16_t durationMin = (uint16_t)(item["duration_min"] | 60);
+      if (durationMin == 0) {
+        durationMin = 60;
+      }
+      applyScheduleDurationToEntry(scheduleEntries[index], durationMin);
+    }
     scheduleEntries[index].lastTriggeredDayOfYearOn = -1;
     scheduleEntries[index].lastTriggeredDayOfYearOff = -1;
     index++;
@@ -2789,7 +2844,8 @@ bool extractControlValueFromJson(const JsonVariantConst value, String& outComman
 bool parseControlCommandFromJson(const JsonDocument& doc) {
   String cmd = "";
   const char* directKeys[] = {
-    "command", "cmd", "control", "state", "switch", "relay", "motor", "motor_command"
+    "command", "cmd", "control", "state", "switch", "relay", "motor", "motor_command",
+    "alarm_state", "alarm", "e_alarm", "d_alarm"
   };
   const char* explicitModeKeys[] = {"mode_command", "set_mode", "mode_cmd"};
 
@@ -2811,6 +2867,13 @@ bool parseControlCommandFromJson(const JsonDocument& doc) {
     return true;
   }
 
+  if (doc.containsKey("alarm_active")) {
+    const bool active = doc["alarm_active"].as<bool>();
+    cmd = active ? "E_ALARM_ON" : "E_ALARM_OFF";
+    handleControlMessage(cmd);
+    return true;
+  }
+
   for (size_t i = 0; i < (sizeof(explicitModeKeys) / sizeof(explicitModeKeys[0])); i++) {
     const char* key = explicitModeKeys[i];
     if (!doc.containsKey(key)) {
@@ -2825,7 +2888,7 @@ bool parseControlCommandFromJson(const JsonDocument& doc) {
 
   if (doc.containsKey("control") && doc["control"].is<JsonObjectConst>()) {
     JsonObjectConst control = doc["control"].as<JsonObjectConst>();
-    const char* nestedKeys[] = {"command", "cmd", "state"};
+    const char* nestedKeys[] = {"command", "cmd", "state", "alarm_state", "alarm", "e_alarm", "d_alarm"};
     for (size_t i = 0; i < (sizeof(nestedKeys) / sizeof(nestedKeys[0])); i++) {
       const char* key = nestedKeys[i];
       if (!control.containsKey(key)) {
@@ -2848,6 +2911,13 @@ bool parseControlCommandFromJson(const JsonDocument& doc) {
         handleControlMessage(cmd);
         return true;
       }
+    }
+
+    if (control.containsKey("alarm_active")) {
+      const bool active = control["alarm_active"].as<bool>();
+      cmd = active ? "E_ALARM_ON" : "E_ALARM_OFF";
+      handleControlMessage(cmd);
+      return true;
     }
   }
 
