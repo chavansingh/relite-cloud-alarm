@@ -1847,9 +1847,6 @@ void applyScheduleLogic() {
     }
   }
 
-  const int x0Raw = readSensorChannelRaw(0, 16);
-  const bool powerSupplyCut = x0Raw >= X0_POWER_SUPPLY_CUT_THRESHOLD;
-
   const bool scheduleActiveNow = isAnyScheduleWindowActiveNow(timeinfo);
 
   if (!scheduleActiveNow && alarmWindowManualOffUntilEnd) {
@@ -1857,16 +1854,10 @@ void applyScheduleLogic() {
     saveAlarmWindowStateToPreferences();
   }
 
-  if (scheduleActiveNow && !alarmWindowManualOffUntilEnd && powerSupplyCut) {
-    alarmWindowCompensationMs += elapsedMs;
-  }
-
-  if (!scheduleActiveNow && alarmWindowCompensationMs > 0 && !powerSupplyCut) {
-    if (elapsedMs >= alarmWindowCompensationMs) {
-      alarmWindowCompensationMs = 0;
-    } else {
-      alarmWindowCompensationMs -= elapsedMs;
-    }
+  // Use strict schedule window only. Compensation based on X0 power-cut
+  // caused extended ON periods on noisy inputs and delayed OFF actions.
+  if (alarmWindowCompensationMs != 0) {
+    alarmWindowCompensationMs = 0;
   }
 
   if (nowMsTick - lastAlarmStatePersistMs >= ALARM_STATE_PERSIST_INTERVAL_MS) {
@@ -1878,7 +1869,7 @@ void applyScheduleLogic() {
     saveAlarmWindowStateToPreferences();
   }
 
-  const bool shouldBeActive = !alarmWindowManualOffUntilEnd && (scheduleActiveNow || (alarmWindowCompensationMs > 0));
+  const bool shouldBeActive = !alarmWindowManualOffUntilEnd && scheduleActiveNow;
 
   if (shouldBeActive && !alarmWindowActive) {
     alarmWindowActive = true;
