@@ -2126,8 +2126,14 @@
             if (!select) {
                 return topicPrefix + "/motor/all/control";
             }
-            const id4 = select.value;
-            return id4 ? topicPrefix + "/motor/" + id4 + "/control" : topicPrefix + "/motor/all/control";
+            const id4 = String(select.value || "").trim();
+            if (id4 === "__ALL__") {
+                return topicPrefix + "/motor/all/control";
+            }
+            if (!id4) {
+                return "";
+            }
+            return topicPrefix + "/motor/" + id4 + "/control";
         }
 
 
@@ -2170,6 +2176,10 @@
 
         function syncTimeToDevice() {
             const targetTopic = getScheduleTargetTopic();
+            if (!targetTopic) {
+                setScheduleMessage("Select target motor first.");
+                return;
+            }
             publishDeviceTime(targetTopic, function(err) {
                 if (err) {
                     return;
@@ -2187,6 +2197,10 @@
 
             saveScheduleConfig(schedule);
             const targetTopic = getScheduleTargetTopic();
+            if (!targetTopic) {
+                setScheduleMessage("Select target motor first.");
+                return;
+            }
 
             publishDeviceTime(targetTopic, function(timeErr) {
                 if (timeErr) {
@@ -4645,7 +4659,7 @@
             select.innerHTML = "";
 
             const allOption = document.createElement("option");
-            allOption.value = "";
+            allOption.value = "__ALL__";
             allOption.textContent = "All motors";
             select.appendChild(allOption);
 
@@ -4659,7 +4673,7 @@
             if (currentValue && Array.from(select.options).some(function(opt) { return opt.value === currentValue; })) {
                 select.value = currentValue;
             } else {
-                select.value = "";
+                select.value = "__ALL__";
             }
         }
 
