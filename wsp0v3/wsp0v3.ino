@@ -1149,14 +1149,14 @@ bool parseOnCommand(const String& msg) {
   String value = msg;
   value.trim();
   value.toUpperCase();
-  return (value == "ON" || value == "1" || value == "HIGH" || value == "START" || value == "ALARM_ON");
+  return (value == "ON" || value == "1" || value == "HIGH" || value == "START" || value == "ALARM_ON" || value == "E_ALARM_ON" || value == "D_ALARM_ON");
 }
 
 bool parseOffCommand(const String& msg) {
   String value = msg;
   value.trim();
   value.toUpperCase();
-  return (value == "OFF" || value == "0" || value == "LOW" || value == "STOP" || value == "ALARM_OFF");
+  return (value == "OFF" || value == "0" || value == "LOW" || value == "STOP" || value == "ALARM_OFF" || value == "E_ALARM_OFF" || value == "D_ALARM_OFF");
 }
 
 void writeRelayPin(int pin, bool turnOn) {
@@ -1865,7 +1865,7 @@ void applyScheduleLogic() {
     autoRestartClearSinceMs = 0;
     autoRestartFaultReason = "";
     saveAlarmWindowStateToPreferences();
-    stopStarterWithReason("ALARM_OFF");
+    stopStarterWithReason("E_ALARM_OFF");
     Serial.println("[SCHEDULE] Alarm window INACTIVE");
     pendingPublishStatus = true;
   }
@@ -1973,10 +1973,10 @@ void applyAutoModeLogic() {
     }
 
     const String startReason = alarmStartRequested
-      ? "ALARM_ON"
+      ? "E_ALARM_ON"
       : (autoRestartAfterFault
         ? "AUTO_RESTART"
-        : (autoAlarmLatched ? "ALARM_OFF" : "AUTO_ON"));
+        : (autoAlarmLatched ? "E_ALARM_OFF" : "AUTO_ON"));
 
     if (autoRestartAfterFault && isCurrentTripReason(autoRestartFaultReason)) {
       markTripRestartUsedForReason(autoRestartFaultReason);
@@ -2215,7 +2215,7 @@ void publishStatus(bool retained) {
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : stateText;
   const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
-  const String alarmStateText = alarmStateActive ? String("ALARM_ON") : (autoAlarmLatched ? String("ALARM_OFF") : String(""));
+  const String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : (autoAlarmLatched ? String("E_ALARM_OFF") : String(""));
   doc["status"] = stateText;
   doc["state"] = stateText;
   doc["status_text"] = statusText;
@@ -2386,7 +2386,7 @@ void publishTelemetry() {
   const String latestReason = switchHistory[0].valid ? switchHistory[0].reason : String("");
   const char* latestState = switchHistory[0].valid ? (switchHistory[0].on ? "ON" : "OFF") : (d27On ? "ON" : "OFF");
   const bool alarmStateActive = alarmWindowActive || alarmWindowStartPending;
-  const String alarmStateText = alarmStateActive ? String("ALARM_ON") : (autoAlarmLatched ? String("ALARM_OFF") : String(""));
+  const String alarmStateText = alarmStateActive ? String("E_ALARM_ON") : (autoAlarmLatched ? String("E_ALARM_OFF") : String(""));
 
   // Keep telemetry compact to reduce publish failures on unstable links.
   StaticJsonDocument<TELEMETRY_JSON_CAPACITY> doc;
@@ -2554,7 +2554,10 @@ void handleControlMessage(const String& msg) {
     clearManualTimedOnState(true);
     String upperMsg = String(msg);
     upperMsg.toUpperCase();
-    startStarterOnSequenceWithReason(upperMsg.indexOf("ALARM_ON") >= 0 ? "ALARM_ON" : "MANUAL_ON_CMD");
+    startStarterOnSequenceWithReason(
+      upperMsg.indexOf("D_ALARM_ON") >= 0 ? "D_ALARM_ON"
+      : (upperMsg.indexOf("E_ALARM_ON") >= 0 || upperMsg.indexOf("ALARM_ON") >= 0 ? "E_ALARM_ON" : "MANUAL_ON_CMD")
+    );
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER ON sequence: D12(30s) -> D14(30s), D27 latched ON");
     return;
@@ -2574,7 +2577,10 @@ void handleControlMessage(const String& msg) {
     saveAlarmWindowStateToPreferences();
     String upperMsg = String(msg);
     upperMsg.toUpperCase();
-    stopStarterWithReason(upperMsg.indexOf("ALARM_OFF") >= 0 ? "ALARM_OFF" : "MANUAL_OFF_CMD");
+    stopStarterWithReason(
+      upperMsg.indexOf("D_ALARM_OFF") >= 0 ? "D_ALARM_OFF"
+      : (upperMsg.indexOf("E_ALARM_OFF") >= 0 || upperMsg.indexOf("ALARM_OFF") >= 0 ? "E_ALARM_OFF" : "MANUAL_OFF_CMD")
+    );
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER OFF: D12/D14/D27 OFF, alarm window paused until current schedule window ends");
     return;
@@ -3269,7 +3275,7 @@ void setup() {
   digitalWrite(SENSOR_SEL_B_PIN, LOW);
   updateNetIndicator(false);
 
-  autoModeEnabled = true;
+  autoModeEnabled = false;
   lastHardwareAutoMode = true;
   modeCommandOverrideActive = true;
   updateModeIndicator();
