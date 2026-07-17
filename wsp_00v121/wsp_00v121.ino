@@ -32,7 +32,7 @@ const char* mqttClientPrefix = "esp_adhana_motor_updated_node";
 const int MODULE_ID = 9;
 
 
-// Auto mode command: X2 raw ADC input below threshold enables AUTO.
+// AUTO is dashboard-controlled only; hardware sensor values do not switch mode.
 // The D13 pin is no longer used for auto/manual mode selection.
 const int MODE_LED_PIN = 15; // D15 mode indicator LED output
 const bool MODE_LED_ON_IN_AUTO = true;
@@ -197,7 +197,7 @@ bool overloadAutoRestartLocked = false;
 bool starterSequenceActive = false;
 unsigned long starterSequenceStartMs = 0;
 bool lastVoltageOk = true;
-bool autoModeEnabled = true;
+bool autoModeEnabled = false;
 bool modeCommandOverrideActive = false;
 bool lastHardwareAutoMode = true;
 bool lastWiFiConnected = false;
@@ -967,7 +967,7 @@ void updateModeDecisionWindow() {
   }
 
   modeDecisionRaw = (int)(modeDecisionSum / modeDecisionCount);
-  modeDecisionHardwareAutoMode = modeDecisionRaw < MODE_X0_THRESHOLD;
+  modeDecisionHardwareAutoMode = false;
   x1DecisionVoltageOk = modeDecisionRaw < X1_FAULT_THRESHOLD;
   modeDecisionReady = true;
   modeDecisionVersion++;
@@ -975,7 +975,7 @@ void updateModeDecisionWindow() {
   Serial.print("[MODE] 30s avg X0=");
   Serial.print(modeDecisionRaw);
   Serial.print(" mode=");
-  Serial.print(modeDecisionHardwareAutoMode ? "AUTO" : "MANUAL");
+  Serial.print("IGNORED");
   Serial.println();
 
   modeDecisionSum = 0;
@@ -998,13 +998,8 @@ bool getVoltageOkFromModeDecision() {
 }
 
 bool readHardwareAutoMode() {
-  // Use immediate X0 reading only for startup if the 30s decision window is not yet ready.
-  if (modeDecisionReady) {
-    return getHardwareModeFromModeDecision();
-  }
-
-  const int x0Raw = readSensorChannelRaw(0, 50);
-  return x0Raw < MODE_X0_THRESHOLD;
+  // Hardware sensor values never drive AUTO/MANUAL mode.
+  return false;
 }
 
 void updateModeIndicator() {
@@ -1107,77 +1102,10 @@ String getProtectionFaultReason(bool lowVoltageActive, bool unbalanceVoltageActi
 }
 
 void syncHardwareMode() {
-  if (!modeDecisionReady) {
-    return;
-  }
-
-  if (modeDecisionVersion == lastHandledModeDecisionVersion) {
-    return;
-  }
+  // AUTO/MANUAL mode is controlled only by dashboard commands.
+  pendingHardwareModeChangeActive = false;
+  pendingHardwareModeConfirmCount = 0;
   lastHandledModeDecisionVersion = modeDecisionVersion;
-
-  const bool hardwareAutoMode = getHardwareModeFromModeDecision();
-
-  if (hardwareAutoMode != lastHardwareAutoMode) {
-    if (!pendingHardwareModeChangeActive || pendingHardwareModeCandidate != hardwareAutoMode) {
-      pendingHardwareModeChangeActive = true;
-      pendingHardwareModeCandidate = hardwareAutoMode;
-      pendingHardwareModeConfirmCount = 1;
-      Serial.print("[MODE] Hardware mode change detected, waiting confirmation: ");
-      Serial.println(hardwareAutoMode ? "AUTO" : "MANUAL");
-      return;
-    }
-
-    pendingHardwareModeConfirmCount++;
-    if (pendingHardwareModeConfirmCount < MODE_TOGGLE_CONFIRM_WINDOWS) {
-      Serial.print("[MODE] Hardware mode confirmation ");
-      Serial.print(pendingHardwareModeConfirmCount);
-      Serial.print("/");
-      Serial.println(MODE_TOGGLE_CONFIRM_WINDOWS);
-      return;
-    }
-
-    pendingHardwareModeChangeActive = false;
-    pendingHardwareModeConfirmCount = 0;
-    lastHardwareAutoMode = hardwareAutoMode;
-
-    if (modeCommandOverrideActive) {
-      modeCommandOverrideActive = false;
-      if (hardwareAutoMode) {
-        autoModeEnabled = true;
-        updateModeIndicator();
-        pendingPublishStatus = true;
-      } else {
-        applyManualModeTransition("AUTO_OFF");
-      }
-      Serial.println("[MODE] Stable hardware toggle detected - dashboard override cleared");
-      Serial.print("[MODE] Now using hardware input mode: ");
-      Serial.println(autoModeEnabled ? "AUTO" : "MANUAL");
-      return;
-    }
-  } else {
-    pendingHardwareModeChangeActive = false;
-    pendingHardwareModeConfirmCount = 0;
-  }
-
-  // If dashboard command set the mode, keep it until the hardware input is physically toggled.
-  if (modeCommandOverrideActive) {
-    return;
-  }
-
-  if (hardwareAutoMode == autoModeEnabled) {
-    return;
-  }
-
-  if (hardwareAutoMode) {
-    autoModeEnabled = true;
-    updateModeIndicator();
-    pendingPublishStatus = true;
-  } else {
-    applyManualModeTransition("AUTO_OFF");
-  }
-  Serial.print("[MODE] Hardware input set mode to ");
-  Serial.println(autoModeEnabled ? "AUTO" : "MANUAL");
 }
 
 void printCd4052AllValues() {
@@ -1409,8 +1337,8 @@ void saveFaultConfigToPreferences() {
 
 void loadModeOverrideFromPreferences() {
   controlPreferences.begin("control", true);
-  modeCommandOverrideActive = controlPreferences.getBool("mode_override", false);
-  autoModeEnabled = controlPreferences.getBool("auto_mode", autoModeEnabled);
+  modeCommandOverrideActive = true;
+  autoModeEnabled = false;
   lowVoltageThresholdV = controlPreferences.getFloat("low_v_thr", LOW_VOLTAGE_THRESHOLD_DEFAULT_V);
   unbalanceVoltageThresholdPct = controlPreferences.getFloat("unbal_pct", UNBALANCE_VOLTAGE_THRESHOLD_DEFAULT_PCT);
   dryRunSetA = controlPreferences.getFloat("dry_set_a", DRY_RUN_SET_DEFAULT_A);
@@ -1430,11 +1358,9 @@ void loadModeOverrideFromPreferences() {
   if (overloadSetA <= dryRunSetA) {
     overloadSetA = dryRunSetA + 0.5f;
   }
-  if (modeCommandOverrideActive) {
-    updateModeIndicator();
-    pendingPublishStatus = true;
-    Serial.println("[MODE] Restored dashboard mode override from prefs");
-  }
+  updateModeIndicator();
+  pendingPublishStatus = true;
+  Serial.println("[MODE] Restored dashboard-controlled mode from prefs");
 
   Serial.print("[VOLTAGE] Low-voltage threshold restored: ");
   Serial.println(lowVoltageThresholdV, 1);
@@ -2310,7 +2236,7 @@ void publishStatus(bool retained) {
   doc["x3_power_cut_threshold"] = X0_POWER_SUPPLY_CUT_THRESHOLD;
   doc["mode"] = autoModeEnabled ? "AUTO" : "MANUAL";
   doc["mode_auto"] = autoModeEnabled;
-  doc["mode_source"] = modeCommandOverrideActive ? "DASHBOARD" : "X0";
+  doc["mode_source"] = "DASHBOARD";
   doc["mode_override"] = modeCommandOverrideActive;
   doc["manual_timer_active"] = manualTimedOnActive;
   doc["manual_timer_duration_sec"] = manualTimedOnDurationSec;
@@ -3324,9 +3250,9 @@ void setup() {
   digitalWrite(SENSOR_SEL_B_PIN, LOW);
   updateNetIndicator(false);
 
-  autoModeEnabled = readHardwareAutoMode();
-  lastHardwareAutoMode = autoModeEnabled;
-  modeCommandOverrideActive = false;
+  autoModeEnabled = true;
+  lastHardwareAutoMode = true;
+  modeCommandOverrideActive = true;
   updateModeIndicator();
 
   loadScheduleFromPreferences();
@@ -3438,7 +3364,6 @@ void loop() {
 #endif
 
   updateModeDecisionWindow();
-  syncHardwareMode();
 
   if (!mqttClient.connected()) {
     if (WiFi.status() == WL_CONNECTED) {
