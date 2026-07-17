@@ -1652,7 +1652,7 @@
 
         function isAlarmOnReason(reason) {
             const upper = String(reason || "").trim().toUpperCase();
-            return upper === "ALARM_ON" || upper === "ALARM ON";
+            return upper === "ALARM_ON" || upper === "ALARM ON" || upper === "ALARM";
         }
 
         function setMotorAlarmState(targetMotorId, active) {
@@ -1847,6 +1847,7 @@
             const targetMotorId = getScheduleTargetMotorId();
             const retryCount = command === "OFF" ? settings.offRetryCount : settings.onRetryCount;
             const gapMs = settings.retryGapMinutes * 60 * 1000;
+            const initialDelayMs = 60 * 1000;
             const nowMs = Date.now();
             const jobId = sourceLabel.replace(/\s+/g, "_") + "_" + command + "_" + nowMs;
 
@@ -1859,11 +1860,11 @@
                 retryCount: retryCount,
                 gapMs: gapMs,
                 attemptsSent: 0,
-                nextAttemptAtMs: nowMs,
+                nextAttemptAtMs: nowMs + initialDelayMs,
                 expiresAtMs: nowMs + (retryCount * gapMs)
             };
 
-            addLog("Dashboard alarm queued: " + sourceLabel + " " + command + " | tries=" + retryCount + " | gap=" + settings.retryGapMinutes + "m");
+            addLog("Dashboard alarm queued: " + sourceLabel + " " + command + " | delay=60s | tries=" + retryCount + " | gap=" + settings.retryGapMinutes + "m");
         }
 
         function processDashboardAlarmJobs() {
