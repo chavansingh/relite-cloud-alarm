@@ -2987,8 +2987,9 @@
                 ? motor.motorRunningCurrent
                 : (motor.current !== null && Number.isFinite(Number(motor.current)) && Number(motor.current) > Number(motor.motorOnCurrentThresholdA || 1.0));
             const alarmActive = !!motor.localAlarmActive || !!motor.deviceAlarmActive;
+            const alarmLabel = motor.deviceAlarmActive && !motor.localAlarmActive ? "E_alarm" : "ALARM ON";
             statusChip.textContent = alarmActive
-                ? (motor.state ? "ALARM ON" : "ALARM OFF") + " | D27 " + d27Label
+                ? (motor.state ? alarmLabel : "ALARM OFF") + " | D27 " + d27Label
                 : (runningByCurrent ? "STARTED" : "STOPPED") + " | D27 " + d27Label;
             if (motor.manualTimerActive && Number.isFinite(Number(motor.manualTimerRemainingSec)) && Number(motor.manualTimerRemainingSec) > 0) {
                 const leftMin = Math.max(1, Math.ceil(Number(motor.manualTimerRemainingSec) / 60));
