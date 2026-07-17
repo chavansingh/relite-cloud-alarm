@@ -1199,7 +1199,10 @@
                     <div class="dot" id="statusDot"></div>
                     <div id="statusText">Connecting...</div>
                 </div>
-                <div id="deviceSummary">Device Online: 0/30</div>
+                <div class="status-right">
+                    <div id="deviceSummary">Device Online: 0/30</div>
+                    <div id="onlineControllers">Online Controllers: none</div>
+                </div>
             </div>
         </div>
 
@@ -2874,11 +2877,15 @@
 
         function updateDeviceSummary() {
             const summary = document.getElementById("deviceSummary");
-            if (!summary) {
+            const onlineControllers = document.getElementById("onlineControllers");
+            if (!summary || !onlineControllers) {
                 return;
             }
-            const onlineCount = motors.filter(function(m) { return m.deviceOnline; }).length;
+            const onlineMotors = motors.filter(function(m) { return m.deviceOnline; });
+            const onlineCount = onlineMotors.length;
             summary.textContent = "Device Online: " + onlineCount + "/" + MOTOR_COUNT;
+            const idList = onlineMotors.map(function(motor) { return motor.id3; });
+            onlineControllers.textContent = "Online Controllers: " + (idList.length > 0 ? idList.join(", ") : "none");
         }
 
         function formatRuntime(totalSeconds) {
