@@ -2545,7 +2545,8 @@ void handleControlMessage(const String& msg) {
       return;
     }
     clearManualTimedOnState(true);
-    const String upperMsg = String(msg).toUpperCase();
+    String upperMsg = String(msg);
+    upperMsg.toUpperCase();
     startStarterOnSequenceWithReason(upperMsg.indexOf("ALARM_ON") >= 0 ? "ALARM_ON" : "MANUAL_ON_CMD");
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER ON sequence: D12(30s) -> D14(30s), D27 latched ON");
@@ -2564,7 +2565,8 @@ void handleControlMessage(const String& msg) {
     autoRestartClearSinceMs = 0;
     autoRestartFaultReason = "";
     saveAlarmWindowStateToPreferences();
-    const String upperMsg = String(msg).toUpperCase();
+    String upperMsg = String(msg);
+    upperMsg.toUpperCase();
     stopStarterWithReason(upperMsg.indexOf("ALARM_OFF") >= 0 ? "ALARM_OFF" : "MANUAL_OFF_CMD");
     pendingPublishStatus = true;
     Serial.println("[CTRL] STARTER OFF: D12/D14/D27 OFF, alarm window paused until current schedule window ends");
