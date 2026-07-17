@@ -4495,6 +4495,16 @@
                         let latestReasonSource = (typeof payload.latest_reason !== "undefined" && String(payload.latest_reason).trim().length > 0)
                             ? String(payload.latest_reason)
                             : "status";
+                        if (typeof payload.alarm_state !== "undefined" && String(payload.alarm_state).trim().length > 0) {
+                            latestReasonSource = String(payload.alarm_state);
+                        } else if (typeof payload.alarm_active !== "undefined" && readBooleanField(payload.alarm_active) && state) {
+                            latestReasonSource = "ALARM_ON";
+                        }
+                        if (typeof payload.alarm_state !== "undefined" && String(payload.alarm_state).trim().length > 0) {
+                            latestReasonSource = String(payload.alarm_state);
+                        } else if (typeof payload.alarm_active !== "undefined" && readBooleanField(payload.alarm_active) && state) {
+                            latestReasonSource = "ALARM_ON";
+                        }
                         if (!state) {
                             if (dryRunActive === true) {
                                 latestReasonSource = "DRY_RUN_TRIP";
