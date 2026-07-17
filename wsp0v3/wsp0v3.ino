@@ -1913,7 +1913,8 @@ bool isAutoStartBlockedByProtection(String& reason) {
 }
 
 void applyAutoModeLogic() {
-  if (manualTimedOnActive || !autoModeEnabled || !modeDecisionReady) {
+  const bool alarmStartRequested = alarmWindowStartPending || alarmWindowActive;
+  if (manualTimedOnActive || (!autoModeEnabled && !alarmStartRequested) || !modeDecisionReady) {
     return;
   }
 
